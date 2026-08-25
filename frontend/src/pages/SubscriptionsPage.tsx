@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { api } from "../api";
-import { EmptyState, ErrorBanner, Money } from "../components/ui";
+import { EmptyState, ErrorBanner, Money, SegmentedControl, Select } from "../components/ui";
+import { useApp } from "../context";
 import type { Cadence, Category, CategoryType, RecurringRule } from "../types";
 import { dollarsToCents, todayISO } from "../utils";
 
 export function SubscriptionsPage() {
+  const { defaultCurrency, currencies } = useApp();
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [amount, setAmount] = useState("");
+  const [currencyCode, setCurrencyCode] = useState(defaultCurrency);
   const [type, setType] = useState<CategoryType>("expense");
   const [categoryId, setCategoryId] = useState("");
   const [cadence, setCadence] = useState<Cadence>("monthly");
@@ -15,6 +18,10 @@ export function SubscriptionsPage() {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setCurrencyCode(defaultCurrency);
+  }, [defaultCurrency]);
 
   const filteredCategories = useMemo(
     () => categories.filter((c) => c.type === type),
@@ -49,6 +56,7 @@ export function SubscriptionsPage() {
     try {
       await api.post("/recurring", {
         amount: dollarsToCents(amount),
+        currency_code: currencyCode,
         category_id: Number(categoryId),
         type,
         cadence,
@@ -93,16 +101,17 @@ export function SubscriptionsPage() {
         <form className="form-grid" onSubmit={onSubmit}>
           <label>
             Type
-            <select
+            <SegmentedControl
               value={type}
-              onChange={(e) => {
-                setType(e.target.value as CategoryType);
+              onChange={(next) => {
+                setType(next);
                 setCategoryId("");
               }}
-            >
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-            </select>
+              options={[
+                { value: "expense", label: "Expense" },
+                { value: "income", label: "Income" },
+              ]}
+            />
           </label>
           <label>
             Amount
@@ -116,8 +125,22 @@ export function SubscriptionsPage() {
             />
           </label>
           <label>
+            Currency
+            <Select
+              required
+              value={currencyCode}
+              onChange={(e) => setCurrencyCode(e.target.value)}
+            >
+              {currencies.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label>
             Category
-            <select
+            <Select
               required
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
@@ -128,18 +151,19 @@ export function SubscriptionsPage() {
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             Cadence
-            <select
+            <SegmentedControl
               value={cadence}
-              onChange={(e) => setCadence(e.target.value as Cadence)}
-            >
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
+              onChange={setCadence}
+              options={[
+                { value: "weekly", label: "Weekly" },
+                { value: "monthly", label: "Monthly" },
+                { value: "yearly", label: "Yearly" },
+              ]}
+            />
           </label>
           <label>
             Next run
@@ -197,7 +221,7 @@ export function SubscriptionsPage() {
                   <td>{r.cadence}</td>
                   <td>{r.next_run_date}</td>
                   <td className={`num ${r.type}`}>
-                    <Money cents={r.amount} />
+                    <Money cents={r.amount} currency={r.currency_code} />
                   </td>
                   <td>{r.active ? "Active" : "Paused"}</td>
                   <td className="actions">

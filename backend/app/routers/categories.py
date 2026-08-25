@@ -47,5 +47,12 @@ def delete_category(category_id: int, db: Session = Depends(get_db)):
     category = db.get(Category, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
-    db.delete(category)
-    db.commit()
+    try:
+        db.delete(category)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Category is in use by transactions, budgets, or subscriptions",
+        )

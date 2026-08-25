@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from app.currency_utils import require_enabled_currency
 from app.database import get_db
 from app.models import Budget, Category, Transaction
 from app.schemas import BudgetCreate, BudgetOut, BudgetUpdate
@@ -12,7 +13,9 @@ from app.schemas import BudgetCreate, BudgetOut, BudgetUpdate
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
 
-def _spent_for_budget(db: Session, category_id: int, month: str) -> int:
+def _spent_for_budget(
+    db: Session, category_id: int, month: str, currency_code: str
+) -> int:
     year, mon = map(int, month.split("-"))
     start = date(year, mon, 1)
     end = date(year, mon, monthrange(year, mon)[1])
@@ -21,6 +24,7 @@ def _spent_for_budget(db: Session, category_id: int, month: str) -> int:
         .filter(
             Transaction.category_id == category_id,
             Transaction.type == "expense",
+            Transaction.currency_code == currency_code,
             Transaction.date >= start,
             Transaction.date <= end,
         )
@@ -35,8 +39,11 @@ def _to_out(db: Session, budget: Budget) -> BudgetOut:
         category_id=budget.category_id,
         limit_cents=budget.limit_cents,
         month=budget.month,
+        currency_code=budget.currency_code,
         category=budget.category,
-        spent_cents=_spent_for_budget(db, budget.category_id, budget.month),
+        spent_cents=_spent_for_budget(
+            db, budget.category_id, budget.month, budget.currency_code
+        ),
     )
 
 
@@ -59,16 +66,24 @@ def create_budget(payload: BudgetCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Category not found")
     if category.type != "expense":
         raise HTTPException(status_code=400, detail="Budgets require expense categories")
+    currency_code = require_enabled_currency(db, payload.currency_code)
     existing = (
         db.query(Budget)
-        .filter(Budget.category_id == payload.category_id, Budget.month == payload.month)
+        .filter(
+            Budget.category_id == payload.category_id,
+            Budget.month == payload.month,
+            Budget.currency_code == currency_code,
+        )
         .first()
     )
     if existing:
         raise HTTPException(
-            status_code=400, detail="Budget already exists for this category and month"
+            status_code=400,
+            detail="Budget already exists for this category, month, and currency",
         )
-    budget = Budget(**payload.model_dump())
+    data = payload.model_dump()
+    data["currency_code"] = currency_code
+    budget = Budget(**data)
     db.add(budget)
     db.commit()
     db.refresh(budget)
@@ -83,7 +98,10 @@ def update_budget(
     budget = db.get(Budget, budget_id)
     if not budget:
         raise HTTPException(status_code=404, detail="Budget not found")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if "currency_code" in data:
+        data["currency_code"] = require_enabled_currency(db, data["currency_code"])
+    for key, value in data.items():
         setattr(budget, key, value)
     db.commit()
     db.refresh(budget)

@@ -4,6 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from app.currency_utils import require_enabled_currency
 from app.database import get_db
 from app.models import Category, Transaction
 from app.schemas import TransactionCreate, TransactionOut, TransactionUpdate
@@ -23,6 +24,7 @@ def list_transactions(
     month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
     category_id: int | None = None,
     type: str | None = None,
+    currency: str | None = None,
     db: Session = Depends(get_db),
 ):
     q = db.query(Transaction).options(joinedload(Transaction.category))
@@ -33,6 +35,8 @@ def list_transactions(
         q = q.filter(Transaction.category_id == category_id)
     if type:
         q = q.filter(Transaction.type == type)
+    if currency:
+        q = q.filter(Transaction.currency_code == currency.upper())
     return q.order_by(Transaction.date.desc(), Transaction.id.desc()).all()
 
 
@@ -46,7 +50,9 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
             status_code=400,
             detail="Category type does not match transaction type",
         )
-    txn = Transaction(**payload.model_dump())
+    data = payload.model_dump()
+    data["currency_code"] = require_enabled_currency(db, data["currency_code"])
+    txn = Transaction(**data)
     db.add(txn)
     db.commit()
     db.refresh(txn)
@@ -62,6 +68,8 @@ def update_transaction(
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
     data = payload.model_dump(exclude_unset=True)
+    if "currency_code" in data:
+        data["currency_code"] = require_enabled_currency(db, data["currency_code"])
     if "category_id" in data or "type" in data:
         category_id = data.get("category_id", txn.category_id)
         txn_type = data.get("type", txn.type)

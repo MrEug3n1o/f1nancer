@@ -1,7 +1,10 @@
-import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { api } from "../api";
 import logoMark from "../assets/logo-mark-light.png";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useApp } from "../context";
+import { normalizeLocale } from "../locales";
 import { formatMonthLabel, shiftMonth } from "../utils";
 
 const links = [
@@ -14,7 +17,34 @@ const links = [
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { month, setMonth } = useApp();
+  const location = useLocation();
+  const isDashboard = location.pathname === "/";
+  const {
+    month,
+    setMonth,
+    locale,
+    refreshSettings,
+    dashboardCustomizing,
+    setDashboardCustomizing,
+  } = useApp();
+  const [savingLocale, setSavingLocale] = useState(false);
+
+  useEffect(() => {
+    if (!isDashboard) {
+      setDashboardCustomizing(false);
+    }
+  }, [isDashboard, setDashboardCustomizing]);
+
+  async function changeLocale(next: string) {
+    if (normalizeLocale(next) === normalizeLocale(locale) || savingLocale) return;
+    setSavingLocale(true);
+    try {
+      await api.patch("/settings", { locale: next });
+      await refreshSettings();
+    } finally {
+      setSavingLocale(false);
+    }
+  }
 
   return (
     <div className="shell">
@@ -42,25 +72,44 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
       <div className="main">
         <header className="topbar">
-          <div className="month-nav">
+          {isDashboard ? (
+            <div className="month-nav">
+              <button
+                type="button"
+                className="btn ghost"
+                aria-label="Previous month"
+                onClick={() => setMonth(shiftMonth(month, -1))}
+              >
+                ‹
+              </button>
+              <h1>{formatMonthLabel(month, locale || undefined)}</h1>
+              <button
+                type="button"
+                className="btn ghost"
+                aria-label="Next month"
+                onClick={() => setMonth(shiftMonth(month, 1))}
+              >
+                ›
+              </button>
+            </div>
+          ) : (
+            <div />
+          )}
+          {isDashboard ? (
             <button
               type="button"
               className="btn ghost"
-              aria-label="Previous month"
-              onClick={() => setMonth(shiftMonth(month, -1))}
+              onClick={() => setDashboardCustomizing((v) => !v)}
             >
-              ‹
+              {dashboardCustomizing ? "Done" : "Customize widgets"}
             </button>
-            <h1>{formatMonthLabel(month)}</h1>
-            <button
-              type="button"
-              className="btn ghost"
-              aria-label="Next month"
-              onClick={() => setMonth(shiftMonth(month, 1))}
-            >
-              ›
-            </button>
-          </div>
+          ) : (
+            <LanguageSwitcher
+              compact
+              value={locale}
+              onChange={(next) => void changeLocale(next)}
+            />
+          )}
         </header>
         <main className="content">{children}</main>
       </div>

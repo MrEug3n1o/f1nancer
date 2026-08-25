@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
-import { EmptyState, ErrorBanner, Money, ProgressBar } from "../components/ui";
+import { EmptyState, ErrorBanner, Money, ProgressBar, Select } from "../components/ui";
 import { useApp } from "../context";
 import type { Budget, Category } from "../types";
 import { dollarsToCents } from "../utils";
 
 export function BudgetsPage() {
-  const { month } = useApp();
+  const { month, defaultCurrency, currencies } = useApp();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState("");
   const [limit, setLimit] = useState("");
+  const [currencyCode, setCurrencyCode] = useState(defaultCurrency);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setCurrencyCode(defaultCurrency);
+  }, [defaultCurrency]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +48,7 @@ export function BudgetsPage() {
         category_id: Number(categoryId),
         limit_cents: dollarsToCents(limit),
         month,
+        currency_code: currencyCode,
       });
       setCategoryId("");
       setLimit("");
@@ -62,8 +68,10 @@ export function BudgetsPage() {
     }
   }
 
-  const usedIds = new Set(budgets.map((b) => b.category_id));
-  const available = categories.filter((c) => !usedIds.has(c.id));
+  const usedKeys = new Set(budgets.map((b) => `${b.category_id}:${b.currency_code}`));
+  const available = categories.filter(
+    (c) => !usedKeys.has(`${c.id}:${currencyCode}`),
+  );
 
   return (
     <div className="stack">
@@ -73,7 +81,7 @@ export function BudgetsPage() {
         <form className="form-grid" onSubmit={onSubmit}>
           <label>
             Category
-            <select
+            <Select
               required
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
@@ -84,7 +92,24 @@ export function BudgetsPage() {
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
+          </label>
+          <label>
+            Currency
+            <Select
+              required
+              value={currencyCode}
+              onChange={(e) => {
+                setCurrencyCode(e.target.value);
+                setCategoryId("");
+              }}
+            >
+              {currencies.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </Select>
           </label>
           <label>
             Limit
@@ -120,11 +145,14 @@ export function BudgetsPage() {
             {budgets.map((b) => (
               <li key={b.id}>
                 <div className="row-between">
-                  <strong>{b.category?.name ?? "Category"}</strong>
+                  <strong>
+                    {b.category?.name ?? "Category"}{" "}
+                    <span className="muted small">({b.currency_code})</span>
+                  </strong>
                   <div className="actions">
                     <span className="muted">
-                      <Money cents={b.spent_cents} /> /{" "}
-                      <Money cents={b.limit_cents} />
+                      <Money cents={b.spent_cents} currency={b.currency_code} /> /{" "}
+                      <Money cents={b.limit_cents} currency={b.currency_code} />
                     </span>
                     <button
                       type="button"

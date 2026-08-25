@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
-import { EmptyState, ErrorBanner, Money, ProgressBar } from "../components/ui";
+import { EmptyState, ErrorBanner, Money, ProgressBar, Select } from "../components/ui";
+import { useApp } from "../context";
 import type { Goal } from "../types";
 import { dollarsToCents } from "../utils";
 
 export function GoalsPage() {
+  const { defaultCurrency, currencies } = useApp();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
+  const [currencyCode, setCurrencyCode] = useState(defaultCurrency);
   const [deadline, setDeadline] = useState("");
   const [contributeAmounts, setContributeAmounts] = useState<Record<number, string>>(
     {},
   );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setCurrencyCode(defaultCurrency);
+  }, [defaultCurrency]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,6 +45,7 @@ export function GoalsPage() {
       await api.post("/goals", {
         name: name.trim(),
         target_amount: dollarsToCents(target),
+        currency_code: currencyCode,
         deadline: deadline || null,
       });
       setName("");
@@ -99,6 +107,20 @@ export function GoalsPage() {
             />
           </label>
           <label>
+            Currency
+            <Select
+              required
+              value={currencyCode}
+              onChange={(e) => setCurrencyCode(e.target.value)}
+            >
+              {currencies.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label>
             Deadline
             <input
               type="date"
@@ -141,8 +163,9 @@ export function GoalsPage() {
                   </button>
                 </div>
                 <p className="muted">
-                  <Money cents={g.current_amount} /> of{" "}
-                  <Money cents={g.target_amount} /> ({g.progress_pct}%)
+                  <Money cents={g.current_amount} currency={g.currency_code} /> of{" "}
+                  <Money cents={g.target_amount} currency={g.currency_code} /> (
+                  {g.progress_pct}%)
                   {g.deadline ? ` · due ${g.deadline}` : ""}
                 </p>
                 <ProgressBar value={g.current_amount} max={g.target_amount} />

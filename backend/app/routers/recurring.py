@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
+from app.currency_utils import require_enabled_currency
 from app.database import get_db
 from app.models import Category, RecurringRule
 from app.schemas import RecurringCreate, RecurringOut, RecurringUpdate
@@ -29,7 +30,9 @@ def create_recurring(payload: RecurringCreate, db: Session = Depends(get_db)):
             status_code=400,
             detail="Category type does not match recurring type",
         )
-    rule = RecurringRule(**payload.model_dump())
+    data = payload.model_dump()
+    data["currency_code"] = require_enabled_currency(db, data["currency_code"])
+    rule = RecurringRule(**data)
     db.add(rule)
     db.commit()
     db.refresh(rule)
@@ -45,6 +48,8 @@ def update_recurring(
     if not rule:
         raise HTTPException(status_code=404, detail="Recurring rule not found")
     data = payload.model_dump(exclude_unset=True)
+    if "currency_code" in data:
+        data["currency_code"] = require_enabled_currency(db, data["currency_code"])
     if "category_id" in data or "type" in data:
         category_id = data.get("category_id", rule.category_id)
         rule_type = data.get("type", rule.type)

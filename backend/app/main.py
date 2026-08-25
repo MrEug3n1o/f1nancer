@@ -11,11 +11,13 @@ from app.routers import (
     analytics,
     budgets,
     categories,
+    currencies,
     goals,
     recurring,
     settings,
     transactions,
 )
+from app.schema_upgrade import ensure_schema
 from app.seed import seed_database
 from app.services.recurring import process_recurring_rules
 
@@ -33,6 +35,7 @@ def _static_dir() -> Path | None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
+    ensure_schema(engine)
     db = SessionLocal()
     try:
         seed_database(db)
@@ -49,6 +52,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -56,6 +61,7 @@ app.add_middleware(
 )
 
 app.include_router(categories.router, prefix="/api")
+app.include_router(currencies.router, prefix="/api")
 app.include_router(transactions.router, prefix="/api")
 app.include_router(budgets.router, prefix="/api")
 app.include_router(goals.router, prefix="/api")

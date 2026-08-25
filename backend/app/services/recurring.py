@@ -32,6 +32,7 @@ def process_recurring_rules(db: Session, today: date | None = None) -> int:
             db.add(
                 Transaction(
                     amount=rule.amount,
+                    currency_code=rule.currency_code,
                     date=run_date,
                     type=rule.type,
                     category_id=rule.category_id,

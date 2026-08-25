@@ -1,6 +1,7 @@
 export type CategoryType = "income" | "expense";
 export type Cadence = "weekly" | "monthly" | "yearly";
 export type GoalStatus = "active" | "completed" | "cancelled";
+export type ThemeMode = "light" | "dark" | "system";
 
 export interface Category {
   id: number;
@@ -9,9 +10,21 @@ export interface Category {
   color: string;
 }
 
+export interface Currency {
+  code: string;
+  name: string;
+  created_at: string;
+}
+
+export interface CurrencyCatalogItem {
+  code: string;
+  name: string;
+}
+
 export interface Transaction {
   id: number;
   amount: number;
+  currency_code: string;
   date: string;
   type: CategoryType;
   category_id: number;
@@ -26,6 +39,7 @@ export interface Budget {
   category_id: number;
   limit_cents: number;
   month: string;
+  currency_code: string;
   category?: Category | null;
   spent_cents: number;
 }
@@ -35,6 +49,7 @@ export interface Goal {
   name: string;
   target_amount: number;
   current_amount: number;
+  currency_code: string;
   deadline: string | null;
   status: GoalStatus;
   created_at: string;
@@ -44,6 +59,7 @@ export interface Goal {
 export interface RecurringRule {
   id: number;
   amount: number;
+  currency_code: string;
   category_id: number;
   type: CategoryType;
   cadence: Cadence;
@@ -56,20 +72,30 @@ export interface RecurringRule {
 
 export interface Settings {
   id: number;
+  default_currency_code: string;
+  theme: ThemeMode;
+  locale: string;
+  first_day_of_week: "monday" | "sunday";
+  dashboard_widgets: string[];
+}
+
+export interface CurrencyOverview {
   currency_code: string;
+  income_cents: number;
+  expense_cents: number;
+  net_cents: number;
 }
 
 export interface MonthOverview {
   month: string;
-  income_cents: number;
-  expense_cents: number;
-  net_cents: number;
+  currencies: CurrencyOverview[];
 }
 
 export interface CategorySpend {
   category_id: number;
   category_name: string;
   color: string;
+  currency_code: string;
   total_cents: number;
 }
 
@@ -78,7 +104,29 @@ export interface GoalProgress {
   name: string;
   target_amount: number;
   current_amount: number;
+  currency_code: string;
   progress_pct: number;
   status: string;
   deadline: string | null;
 }
+
+export interface TrendPoint {
+  month: string;
+  currency_code: string;
+  income_cents: number;
+  expense_cents: number;
+}
+
+export interface CurrencyMonthSplit {
+  currency_code: string;
+  income_cents: number;
+  expense_cents: number;
+}
+
+export const DASHBOARD_WIDGET_OPTIONS = [
+  { id: "overview", label: "Month overview" },
+  { id: "spend_by_category", label: "Spend by category" },
+  { id: "budgets", label: "Budget progress" },
+  { id: "category_table", label: "Category breakdown table" },
+  { id: "goals", label: "Goals" },
+] as const;
