@@ -2,17 +2,21 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { EmptyState, ErrorBanner, Money, ProgressBar, Select } from "../components/ui";
 import { useApp } from "../context";
-import type { Goal } from "../types";
+import type { Category, Goal } from "../types";
 import { dollarsToCents } from "../utils";
 
 export function GoalsPage() {
   const { defaultCurrency, currencies } = useApp();
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency);
   const [deadline, setDeadline] = useState("");
   const [contributeAmounts, setContributeAmounts] = useState<Record<number, string>>(
+    {},
+  );
+  const [completeCategories, setCompleteCategories] = useState<Record<number, string>>(
     {},
   );
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +30,12 @@ export function GoalsPage() {
     setLoading(true);
     setError(null);
     try {
-      setGoals(await api.get<Goal[]>("/goals"));
+      const [goalRows, categoryRows] = await Promise.all([
+        api.get<Goal[]>("/goals"),
+        api.get<Category[]>("/categories?type=expense"),
+      ]);
+      setGoals(goalRows);
+      setCategories(categoryRows);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -37,6 +46,8 @@ export function GoalsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const defaultExpenseCategoryId = categories[0]?.id;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -66,6 +77,31 @@ export function GoalsPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Contribution failed");
+    }
+  }
+
+  async function onComplete(goal: Goal) {
+    if (goal.current_amount <= 0) {
+      if (!confirm("Mark this goal complete with no saved balance?")) return;
+    } else if (
+      !confirm(
+        "Mark this goal complete? The saved amount will be recorded as an expense.",
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      const selected = completeCategories[goal.id];
+      const categoryId = selected
+        ? Number(selected)
+        : categories.find((c) => c.name === "Goals")?.id ?? defaultExpenseCategoryId;
+      await api.post(`/goals/${goal.id}/complete`, {
+        category_id: categoryId ?? null,
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Complete failed");
     }
   }
 
@@ -170,28 +206,62 @@ export function GoalsPage() {
                 </p>
                 <ProgressBar value={g.current_amount} max={g.target_amount} />
                 {g.status === "active" ? (
-                  <div className="contribute-row">
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      placeholder="Contribute"
-                      value={contributeAmounts[g.id] ?? ""}
-                      onChange={(e) =>
-                        setContributeAmounts((m) => ({
-                          ...m,
-                          [g.id]: e.target.value,
-                        }))
-                      }
-                    />
-                    <button
-                      type="button"
-                      className="btn primary small"
-                      onClick={() => void onContribute(g.id)}
-                    >
-                      Add
-                    </button>
-                  </div>
+                  <>
+                    <div className="contribute-row">
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="Contribute"
+                        value={contributeAmounts[g.id] ?? ""}
+                        onChange={(e) =>
+                          setContributeAmounts((m) => ({
+                            ...m,
+                            [g.id]: e.target.value,
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="btn primary small"
+                        onClick={() => void onContribute(g.id)}
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="contribute-row">
+                      <Select
+                        value={
+                          completeCategories[g.id] ??
+                          String(
+                            categories.find((c) => c.name === "Goals")?.id ??
+                              defaultExpenseCategoryId ??
+                              "",
+                          )
+                        }
+                        onChange={(e) =>
+                          setCompleteCategories((m) => ({
+                            ...m,
+                            [g.id]: e.target.value,
+                          }))
+                        }
+                        aria-label="Expense category for completion"
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </Select>
+                      <button
+                        type="button"
+                        className="btn small"
+                        onClick={() => void onComplete(g)}
+                      >
+                        Complete
+                      </button>
+                    </div>
+                  </>
                 ) : null}
               </li>
             ))}

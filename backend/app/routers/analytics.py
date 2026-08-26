@@ -71,6 +71,21 @@ def month_overview(
         .group_by(Transaction.currency_code)
         .all()
     )
+    # Goal-completion expenses are already counted via contributions (saved).
+    goal_spend_rows = (
+        db.query(
+            Transaction.currency_code,
+            func.coalesce(func.sum(Transaction.amount), 0).label("total"),
+        )
+        .filter(
+            Transaction.type == "expense",
+            Transaction.goal_id.isnot(None),
+            Transaction.date >= start,
+            Transaction.date <= end,
+        )
+        .group_by(Transaction.currency_code)
+        .all()
+    )
     saved_rows = (
         db.query(
             GoalContribution.currency_code,
@@ -83,7 +98,9 @@ def month_overview(
         .group_by(GoalContribution.currency_code)
         .all()
     )
-    # Money locked in deposits is unavailable until maturity/return.
+    # Principal still locked in deposits that started this month.
+    # Matured/returned deposits are booked as income on complete, so keep
+    # counting them here to avoid double-adding principal into net.
     deposited_rows = (
         db.query(
             Deposit.currency_code,
@@ -100,10 +117,15 @@ def month_overview(
 
     income_map = {r.currency_code: int(r.total) for r in income_rows}
     expense_map = {r.currency_code: int(r.total) for r in expense_rows}
+    goal_spend_map = {r.currency_code: int(r.total) for r in goal_spend_rows}
     saved_map = {r.currency_code: int(r.total) for r in saved_rows}
     deposited_map = {r.currency_code: int(r.total) for r in deposited_rows}
     codes = sorted(
-        set(income_map) | set(expense_map) | set(saved_map) | set(deposited_map)
+        set(income_map)
+        | set(expense_map)
+        | set(saved_map)
+        | set(deposited_map)
+        | set(goal_spend_map)
     )
 
     currencies = []
@@ -112,12 +134,14 @@ def month_overview(
         expense = expense_map.get(code, 0)
         saved = saved_map.get(code, 0)
         deposited = deposited_map.get(code, 0)
+        goal_spend = goal_spend_map.get(code, 0)
         currencies.append(
             CurrencyOverview(
                 currency_code=code,
                 income_cents=income,
                 expense_cents=expense,
-                net_cents=income - expense - saved - deposited,
+                # Contributions already reduced net; add goal spend back so it isn't counted twice.
+                net_cents=income - expense - saved - deposited + goal_spend,
             )
         )
 

@@ -1,4 +1,4 @@
-"""Launch F1nancer as a native Mac desktop window."""
+"""Launch F1nancer as a native desktop window (macOS / Windows)."""
 
 from __future__ import annotations
 
@@ -34,6 +34,7 @@ def _prepare_environment(root: Path) -> None:
         )
 
     os.environ.setdefault("F1NANCER_STATIC_DIR", str(static_dir))
+    os.environ.setdefault("F1NANCER_DESKTOP", "1")
 
 
 def _free_port() -> int:

@@ -87,6 +87,7 @@ class TransactionOut(BaseModel):
     category_id: int
     note: str | None
     recurring_id: int | None
+    goal_id: int | None = None
     created_at: datetime
     category: CategoryOut | None = None
 
@@ -154,6 +155,10 @@ class GoalUpdate(BaseModel):
 
 class GoalContribute(BaseModel):
     amount: int = Field(gt=0, description="Contribution in cents")
+
+
+class GoalComplete(BaseModel):
+    category_id: int | None = None
 
 
 class GoalOut(BaseModel):

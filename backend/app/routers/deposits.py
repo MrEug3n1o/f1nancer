@@ -11,10 +11,50 @@ from app.deposit_utils import (
     simple_interest_cents,
     term_progress_pct,
 )
-from app.models import Deposit, DepositStatus, DepositType
+from app.models import Category, Deposit, DepositStatus, DepositType, Transaction
 from app.schemas import DepositCreate, DepositOut, DepositUpdate
 
 router = APIRouter(prefix="/deposits", tags=["deposits"])
+
+DEPOSIT_RETURN_CATEGORY = "Deposit return"
+DEPOSIT_RETURN_COLOR = "#2D6A4F"
+
+
+def _ensure_deposit_return_category(db: Session) -> Category:
+    category = (
+        db.query(Category)
+        .filter(
+            Category.name == DEPOSIT_RETURN_CATEGORY,
+            Category.type == "income",
+        )
+        .first()
+    )
+    if category:
+        return category
+    category = Category(
+        name=DEPOSIT_RETURN_CATEGORY,
+        type="income",
+        color=DEPOSIT_RETURN_COLOR,
+    )
+    db.add(category)
+    db.flush()
+    return category
+
+
+def _payout_cents(deposit: Deposit) -> int:
+    """Principal plus accrued interest (bank) through today or maturity."""
+    interest = 0
+    if (
+        deposit.type == DepositType.bank.value
+        and deposit.annual_rate_bps is not None
+    ):
+        interest = simple_interest_cents(
+            deposit.principal_cents,
+            deposit.annual_rate_bps,
+            deposit.start_date,
+            deposit.end_date,
+        )
+    return deposit.principal_cents + interest
 
 
 def _validate_payload(
@@ -152,10 +192,28 @@ def complete_deposit(deposit_id: int, db: Session = Depends(get_db)):
     if deposit.status != DepositStatus.active.value:
         raise HTTPException(status_code=400, detail="Deposit is not active")
 
+    payout = _payout_cents(deposit)
+    if payout <= 0:
+        raise HTTPException(status_code=400, detail="Deposit payout must be positive")
+
     if deposit.type == DepositType.bank.value:
         deposit.status = DepositStatus.matured.value
+        note = f"Deposit matured: {deposit.name}"
     else:
         deposit.status = DepositStatus.returned.value
+        note = f"Deposit returned: {deposit.name}"
+
+    category = _ensure_deposit_return_category(db)
+    db.add(
+        Transaction(
+            amount=payout,
+            currency_code=deposit.currency_code,
+            date=date.today(),
+            type="income",
+            category_id=category.id,
+            note=note,
+        )
+    )
 
     db.commit()
     db.refresh(deposit)

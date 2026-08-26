@@ -19,6 +19,7 @@ DEFAULT_CATEGORIES = [
     ("Salary", "income", "#2D6A4F"),
     ("Freelance", "income", "#40916C"),
     ("Other Income", "income", "#52B788"),
+    ("Deposit return", "income", "#2D6A4F"),
     ("Groceries", "expense", "#BC4749"),
     ("Rent", "expense", "#A4161A"),
     ("Utilities", "expense", "#E09F3E"),
@@ -28,6 +29,7 @@ DEFAULT_CATEGORIES = [
     ("Health", "expense", "#1B998B"),
     ("Shopping", "expense", "#D4A373"),
     ("Subscriptions", "expense", "#6C757D"),
+    ("Goals", "expense", "#5B8C5A"),
     ("Other Expense", "expense", "#495057"),
 ]
 
@@ -94,6 +96,19 @@ def seed_database(db: Session) -> None:
     if db.query(Category).count() == 0:
         for name, cat_type, color in DEFAULT_CATEGORIES:
             db.add(Category(name=name, type=cat_type, color=color))
+    else:
+        extras = [
+            ("Deposit return", "income", "#2D6A4F"),
+            ("Goals", "expense", "#5B8C5A"),
+        ]
+        for name, cat_type, color in extras:
+            exists = (
+                db.query(Category)
+                .filter(Category.name == name, Category.type == cat_type)
+                .first()
+            )
+            if exists is None:
+                db.add(Category(name=name, type=cat_type, color=color))
 
     _backfill_goal_contributions(db)
     db.commit()

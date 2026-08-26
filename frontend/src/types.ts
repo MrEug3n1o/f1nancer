@@ -32,6 +32,7 @@ export interface Transaction {
   category_id: number;
   note: string | null;
   recurring_id: number | null;
+  goal_id?: number | null;
   created_at: string;
   category?: Category | null;
 }

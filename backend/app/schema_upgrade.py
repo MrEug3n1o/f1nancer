@@ -202,3 +202,12 @@ def ensure_schema(engine: Engine) -> None:
                     """
                 )
             )
+
+        # Link goal-completion expenses back to goals
+        tables_now = set(inspect(engine).get_table_names())
+        if "transactions" in tables_now and "goals" in tables_now:
+            txn_cols = {c["name"] for c in inspect(engine).get_columns("transactions")}
+            if "goal_id" not in txn_cols:
+                conn.execute(
+                    text("ALTER TABLE transactions ADD COLUMN goal_id INTEGER")
+                )

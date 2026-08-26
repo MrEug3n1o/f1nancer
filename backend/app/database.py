@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -9,7 +10,12 @@ def _default_data_dir() -> Path:
     override = os.environ.get("F1NANCER_DATA_DIR")
     if override:
         return Path(override).expanduser()
-    return Path.home() / "Library" / "Application Support" / "F1nancer"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "F1nancer"
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(base) / "F1nancer"
+    return Path.home() / ".local" / "share" / "F1nancer"
 
 
 DATA_DIR = _default_data_dir()

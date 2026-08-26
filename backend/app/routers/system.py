@@ -1,5 +1,3 @@
-"""System / About / in-app update endpoints."""
-
 from fastapi import APIRouter, HTTPException, Request
 
 from app import update_service
@@ -22,16 +20,10 @@ def system_info():
     state = update_service.snapshot()
     return {
         "version": APP_VERSION,
+        **state,
+        "current_version": state.get("current_version") or APP_VERSION,
         "github_repo": GITHUB_REPO,
         "branch": DEFAULT_BRANCH,
-        "current_sha": state.get("current_sha"),
-        "latest_sha": state.get("latest_sha"),
-        "update_available": state.get("update_available"),
-        "status": state.get("status"),
-        "message": state.get("message"),
-        "error": state.get("error"),
-        "can_update": state.get("can_update", True),
-        "log": state.get("log", ""),
     }
 
 
@@ -50,7 +42,7 @@ def check_update(request: Request):
 @router.post("/update")
 def start_update(request: Request):
     _require_localhost(request)
-    return update_service.start_update()
+    return update_service.start_update(auto_relaunch=True)
 
 
 @router.post("/update/relaunch")

@@ -89,6 +89,9 @@ class Transaction(Base):
     recurring_id: Mapped[int | None] = mapped_column(
         ForeignKey("recurring_rules.id"), nullable=True
     )
+    goal_id: Mapped[int | None] = mapped_column(
+        ForeignKey("goals.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
@@ -97,6 +100,7 @@ class Transaction(Base):
     recurring_rule: Mapped["RecurringRule | None"] = relationship(
         back_populates="transactions"
     )
+    goal: Mapped["Goal | None"] = relationship(back_populates="spend_transactions")
 
 
 class Budget(Base):
@@ -141,6 +145,9 @@ class Goal(Base):
 
     contributions: Mapped[list["GoalContribution"]] = relationship(
         back_populates="goal", cascade="all, delete-orphan"
+    )
+    spend_transactions: Mapped[list["Transaction"]] = relationship(
+        back_populates="goal"
     )
 
 
