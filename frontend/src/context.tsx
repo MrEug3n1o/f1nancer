@@ -29,9 +29,9 @@ const fallbackSettings: Settings = {
   id: 0,
   default_currency_code: "USD",
   theme: "system",
-  locale: "",
+  locale: "en-US",
   first_day_of_week: "monday",
-  dashboard_widgets: ["overview", "spend_by_category", "budgets", "goals"],
+  dashboard_widgets: ["overview", "spend_by_category", "budgets", "goals", "deposits"],
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -90,7 +90,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setMonth,
         settings,
         defaultCurrency,
-        locale: settings?.locale ?? "",
+        locale: "en-US",
         currencies,
         dashboardCustomizing,
         setDashboardCustomizing,

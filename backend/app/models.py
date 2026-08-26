@@ -33,7 +33,19 @@ class GoalStatus(str, Enum):
     cancelled = "cancelled"
 
 
-DEFAULT_DASHBOARD_WIDGETS = '["overview","spend_by_category","budgets","goals"]'
+class DepositType(str, Enum):
+    bank = "bank"
+    rental = "rental"
+
+
+class DepositStatus(str, Enum):
+    active = "active"
+    matured = "matured"
+    returned = "returned"
+    cancelled = "cancelled"
+
+
+DEFAULT_DASHBOARD_WIDGETS = '["overview","spend_by_category","budgets","goals","deposits"]'
 DEFAULT_STATS_CHARTS = '["trends","spend_by_category","by_currency"]'
 
 
@@ -147,6 +159,29 @@ class GoalContribution(Base):
     )
 
     goal: Mapped["Goal"] = relationship(back_populates="contributions")
+
+
+class Deposit(Base):
+    __tablename__ = "deposits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    type: Mapped[str] = mapped_column(String(20), nullable=False)
+    principal_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency_code: Mapped[str] = mapped_column(
+        String(3), ForeignKey("currencies.code"), nullable=False, default="USD"
+    )
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    annual_rate_bps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    counterparty: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=DepositStatus.active.value
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
 
 
 class RecurringRule(Base):

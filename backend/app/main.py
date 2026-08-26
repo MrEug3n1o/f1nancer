@@ -12,14 +12,17 @@ from app.routers import (
     budgets,
     categories,
     currencies,
+    deposits,
     goals,
     recurring,
     settings,
+    system,
     transactions,
 )
 from app.schema_upgrade import ensure_schema
 from app.seed import seed_database
 from app.services.recurring import process_recurring_rules
+from app.version import APP_VERSION
 
 
 def _static_dir() -> Path | None:
@@ -45,7 +48,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="F1nancer", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="F1nancer", version=APP_VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -65,19 +68,21 @@ app.include_router(currencies.router, prefix="/api")
 app.include_router(transactions.router, prefix="/api")
 app.include_router(budgets.router, prefix="/api")
 app.include_router(goals.router, prefix="/api")
+app.include_router(deposits.router, prefix="/api")
 app.include_router(recurring.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
+app.include_router(system.router, prefix="/api")
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": APP_VERSION}
 
 
 @app.get("/api/health")
 def api_health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": APP_VERSION}
 
 
 STATIC_DIR = _static_dir()

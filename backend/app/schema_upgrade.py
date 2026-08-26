@@ -178,3 +178,27 @@ def ensure_schema(engine: Engine) -> None:
                 )
                 conn.execute(text("DROP TABLE budgets"))
                 conn.execute(text("ALTER TABLE budgets_new RENAME TO budgets"))
+
+        tables_now = set(inspect(engine).get_table_names())
+        if "deposits" not in tables_now and "currencies" in tables_now:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE deposits (
+                        id INTEGER NOT NULL PRIMARY KEY,
+                        name VARCHAR(200) NOT NULL,
+                        type VARCHAR(20) NOT NULL,
+                        principal_cents INTEGER NOT NULL,
+                        currency_code VARCHAR(3) NOT NULL,
+                        start_date DATE NOT NULL,
+                        end_date DATE NOT NULL,
+                        annual_rate_bps INTEGER,
+                        counterparty VARCHAR(200),
+                        note TEXT,
+                        status VARCHAR(20) NOT NULL,
+                        created_at DATETIME NOT NULL,
+                        FOREIGN KEY(currency_code) REFERENCES currencies (code)
+                    )
+                    """
+                )
+            )

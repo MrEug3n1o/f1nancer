@@ -8,6 +8,7 @@ from app.iso_currencies import ISO_CURRENCIES, is_valid_iso_code, normalize_code
 from app.models import (
     Budget,
     Currency,
+    Deposit,
     Goal,
     GoalContribution,
     RecurringRule,
@@ -81,15 +82,31 @@ def delete_currency(code: str, db: Session = Depends(get_db)):
         .filter(GoalContribution.currency_code == normalized)
         .scalar()
     )
+    deposit_count = (
+        db.query(func.count(Deposit.id))
+        .filter(Deposit.currency_code == normalized)
+        .scalar()
+    )
 
-    if any(c > 0 for c in (txn_count, rule_count, budget_count, goal_count, contrib_count)):
+    if any(
+        c > 0
+        for c in (
+            txn_count,
+            rule_count,
+            budget_count,
+            goal_count,
+            contrib_count,
+            deposit_count,
+        )
+    ):
         raise HTTPException(
             status_code=409,
             detail=(
                 f"Currency {normalized} is in use "
                 f"({txn_count} transactions, {rule_count} subscriptions, "
                 f"{budget_count} budgets, {goal_count} goals, "
-                f"{contrib_count} contributions). Remove those first."
+                f"{contrib_count} contributions, {deposit_count} deposits). "
+                "Remove those first."
             ),
         )
 

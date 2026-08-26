@@ -8,10 +8,12 @@ import {
 } from "recharts";
 import { api } from "../api";
 import { EmptyState, ErrorBanner, Money, ProgressBar, Select } from "../components/ui";
+import { DepositAccrualRing } from "../components/DepositCard";
 import { useApp } from "../context";
 import type {
   Budget,
   CategorySpend,
+  Deposit,
   GoalProgress,
   MonthOverview,
   Settings,
@@ -28,7 +30,13 @@ const GOAL_COLORS = [
   "#7a6b8a",
 ];
 
-const DEFAULT_WIDGETS = ["overview", "spend_by_category", "budgets", "goals"];
+const DEFAULT_WIDGETS = [
+  "overview",
+  "spend_by_category",
+  "budgets",
+  "goals",
+  "deposits",
+];
 
 export function DashboardPage() {
   const { month, settings, locale, refreshSettings, dashboardCustomizing } =
@@ -37,6 +45,7 @@ export function DashboardPage() {
   const [overview, setOverview] = useState<MonthOverview | null>(null);
   const [spend, setSpend] = useState<CategorySpend[]>([]);
   const [goals, setGoals] = useState<GoalProgress[]>([]);
+  const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [spendCurrency, setSpendCurrency] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -50,16 +59,18 @@ export function DashboardPage() {
       const spendUrl = spendCurrency
         ? `/analytics/spend-by-category?month=${month}&currency=${spendCurrency}`
         : `/analytics/spend-by-category?month=${month}`;
-      const [ov, sp, gp, bu] = await Promise.all([
+      const [ov, sp, gp, bu, dep] = await Promise.all([
         api.get<MonthOverview>(`/analytics/month-overview?month=${month}`),
         api.get<CategorySpend[]>(spendUrl),
         api.get<GoalProgress[]>("/analytics/goals-progress"),
         api.get<Budget[]>(`/budgets?month=${month}`),
+        api.get<Deposit[]>("/deposits"),
       ]);
       setOverview(ov);
       setSpend(sp);
       setGoals(gp);
       setBudgets(bu);
+      setDeposits(dep.filter((d) => d.status === "active"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard");
     } finally {
@@ -110,6 +121,7 @@ export function DashboardPage() {
   const showBudgets = widgets.includes("budgets");
   const showCategoryTable = widgets.includes("category_table");
   const showGoals = widgets.includes("goals");
+  const showDeposits = widgets.includes("deposits");
 
   return (
     <div className="stack">
@@ -410,6 +422,38 @@ export function DashboardPage() {
                           currency={g.currency_code}
                         />
                       </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {showDeposits ? (
+        <section className="section">
+          <h2>Deposits</h2>
+          {deposits.length === 0 ? (
+            <EmptyState
+              title="No active deposits"
+              hint="Add a bank or rental deposit on the Deposits page."
+            />
+          ) : (
+            <div className="goal-pies">
+              {deposits.map((d) => {
+                const accrued =
+                  d.type === "bank" ? d.accrued_interest_cents : 0;
+                return (
+                  <div key={d.id} className="goal-pie">
+                    <DepositAccrualRing
+                      progressPct={d.term_progress_pct}
+                      accruedCents={accrued}
+                      currency={d.currency_code}
+                      size={160}
+                    />
+                    <div className="goal-pie-meta">
+                      <strong>{d.name}</strong>
                     </div>
                   </div>
                 );

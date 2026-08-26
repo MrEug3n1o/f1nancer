@@ -21,6 +21,7 @@ VALID_DASHBOARD = {
     "budgets",
     "goals",
     "category_table",
+    "deposits",
 }
 VALID_STATS = {
     "trends",
@@ -36,6 +37,15 @@ def _to_out(settings: Settings) -> SettingsOut:
     default_charts = json.loads(DEFAULT_STATS_CHARTS)
     widgets = parse_json_list(settings.dashboard_widgets, default_widgets)
     charts = parse_json_list(settings.stats_charts, default_charts)
+    # Promote deposits onto dashboards that still use the pre-deposits default set.
+    legacy_without_deposits = {
+        "overview",
+        "spend_by_category",
+        "budgets",
+        "goals",
+    }
+    if "deposits" not in widgets and set(widgets) == legacy_without_deposits:
+        widgets = [*widgets, "deposits"]
     merged_widgets = [
         w
         for w in dict.fromkeys(

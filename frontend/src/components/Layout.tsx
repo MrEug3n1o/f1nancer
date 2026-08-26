@@ -1,10 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { api } from "../api";
 import logoMark from "../assets/logo-mark-light.png";
-import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useApp } from "../context";
-import { normalizeLocale } from "../locales";
 import { formatMonthLabel, shiftMonth } from "../utils";
 
 const links = [
@@ -12,6 +9,7 @@ const links = [
   { to: "/transactions", label: "Transactions" },
   { to: "/budgets", label: "Budgets" },
   { to: "/goals", label: "Goals" },
+  { to: "/deposits", label: "Deposits" },
   { to: "/subscriptions", label: "Subscriptions" },
   { to: "/settings", label: "Settings" },
 ];
@@ -23,28 +21,15 @@ export function Layout({ children }: { children: ReactNode }) {
     month,
     setMonth,
     locale,
-    refreshSettings,
     dashboardCustomizing,
     setDashboardCustomizing,
   } = useApp();
-  const [savingLocale, setSavingLocale] = useState(false);
 
   useEffect(() => {
     if (!isDashboard) {
       setDashboardCustomizing(false);
     }
   }, [isDashboard, setDashboardCustomizing]);
-
-  async function changeLocale(next: string) {
-    if (normalizeLocale(next) === normalizeLocale(locale) || savingLocale) return;
-    setSavingLocale(true);
-    try {
-      await api.patch("/settings", { locale: next });
-      await refreshSettings();
-    } finally {
-      setSavingLocale(false);
-    }
-  }
 
   return (
     <div className="shell">
@@ -103,13 +88,7 @@ export function Layout({ children }: { children: ReactNode }) {
             >
               {dashboardCustomizing ? "Done" : "Customize widgets"}
             </button>
-          ) : (
-            <LanguageSwitcher
-              compact
-              value={locale}
-              onChange={(next) => void changeLocale(next)}
-            />
-          )}
+          ) : null}
         </header>
         <main className="content">{children}</main>
       </div>

@@ -16,6 +16,7 @@ if not FRONTEND_DIST.is_dir():
 
 datas = [
     (str(FRONTEND_DIST), "frontend/dist"),
+    (str(ROOT / "desktop" / "apply_update.sh"), "desktop"),
 ]
 binaries = []
 hiddenimports = [
@@ -42,9 +43,17 @@ hiddenimports = [
     "app.routers.goals",
     "app.routers.recurring",
     "app.routers.settings",
+    "app.routers.system",
     "app.routers.transactions",
+    "app.routers.currencies",
+    "app.routers.deposits",
     "app.services",
     "app.services.recurring",
+    "app.update_service",
+    "app.version",
+    "app.deposit_utils",
+    "app.currency_utils",
+    "app.schema_upgrade",
 ]
 
 for package in ("webview", "uvicorn", "fastapi", "starlette", "anyio", "sqlalchemy", "pydantic"):
@@ -108,7 +117,7 @@ app = BUNDLE(
     info_plist={
         "CFBundleName": "F1nancer",
         "CFBundleDisplayName": "F1nancer",
-        "CFBundleShortVersionString": "0.1.0",
+        "CFBundleShortVersionString": "0.1.0",  # keep in sync with app.version.APP_VERSION
         "NSHighResolutionCapable": True,
     },
 )

@@ -170,6 +170,69 @@ class GoalOut(BaseModel):
     progress_pct: float = 0.0
 
 
+class DepositCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    type: Literal["bank", "rental"]
+    principal_cents: int = Field(gt=0)
+    currency_code: str = Field(min_length=3, max_length=3)
+    start_date: Date
+    end_date: Date
+    annual_rate_bps: int | None = Field(default=None, ge=0)
+    counterparty: str | None = Field(default=None, max_length=200)
+    note: str | None = None
+
+    @field_validator("currency_code")
+    @classmethod
+    def upper_currency(cls, v: str) -> str:
+        return v.strip().upper()
+
+
+class DepositUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    principal_cents: int | None = Field(default=None, gt=0)
+    currency_code: str | None = Field(default=None, min_length=3, max_length=3)
+    start_date: Date | None = None
+    end_date: Date | None = None
+    annual_rate_bps: int | None = Field(default=None, ge=0)
+    counterparty: str | None = Field(default=None, max_length=200)
+    note: str | None = None
+    status: Literal["active", "matured", "returned", "cancelled"] | None = None
+
+    @field_validator("currency_code")
+    @classmethod
+    def upper_currency(cls, v: str | None) -> str | None:
+        return v.strip().upper() if v else v
+
+
+class DepositOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    type: str
+    principal_cents: int
+    currency_code: str
+    start_date: Date
+    end_date: Date
+    annual_rate_bps: int | None
+    counterparty: str | None
+    note: str | None
+    status: str
+    created_at: datetime
+    accrued_interest_cents: int = 0
+    current_value_cents: int = 0
+    maturity_value_cents: int | None = None
+    days_remaining: int = 0
+    term_progress_pct: float = 0.0
+
+
+class DepositSummaryItem(BaseModel):
+    currency_code: str
+    active_count: int
+    principal_cents: int
+    current_value_cents: int
+
+
 class RecurringCreate(BaseModel):
     amount: int = Field(gt=0)
     currency_code: str = Field(min_length=3, max_length=3)

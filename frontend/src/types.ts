@@ -1,6 +1,8 @@
 export type CategoryType = "income" | "expense";
 export type Cadence = "weekly" | "monthly" | "yearly";
 export type GoalStatus = "active" | "completed" | "cancelled";
+export type DepositType = "bank" | "rental";
+export type DepositStatus = "active" | "matured" | "returned" | "cancelled";
 export type ThemeMode = "light" | "dark" | "system";
 
 export interface Category {
@@ -54,6 +56,33 @@ export interface Goal {
   status: GoalStatus;
   created_at: string;
   progress_pct: number;
+}
+
+export interface Deposit {
+  id: number;
+  name: string;
+  type: DepositType;
+  principal_cents: number;
+  currency_code: string;
+  start_date: string;
+  end_date: string;
+  annual_rate_bps: number | null;
+  counterparty: string | null;
+  note: string | null;
+  status: DepositStatus;
+  created_at: string;
+  accrued_interest_cents: number;
+  current_value_cents: number;
+  maturity_value_cents: number | null;
+  days_remaining: number;
+  term_progress_pct: number;
+}
+
+export interface DepositSummaryItem {
+  currency_code: string;
+  active_count: number;
+  principal_cents: number;
+  current_value_cents: number;
 }
 
 export interface RecurringRule {
@@ -129,4 +158,5 @@ export const DASHBOARD_WIDGET_OPTIONS = [
   { id: "budgets", label: "Budget progress" },
   { id: "category_table", label: "Category breakdown table" },
   { id: "goals", label: "Goals" },
+  { id: "deposits", label: "Deposits" },
 ] as const;

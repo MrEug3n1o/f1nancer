@@ -41,6 +41,19 @@ export function dollarsToCents(value: string): number {
   return Math.round(n * 100);
 }
 
+/** Convert a percent string like "5.25" to integer basis points (525). */
+export function percentToBps(value: string): number {
+  const n = Number.parseFloat(value);
+  if (Number.isNaN(n) || n < 0) {
+    throw new Error("Enter a non-negative interest rate");
+  }
+  return Math.round(n * 100);
+}
+
+export function bpsToPercentInput(bps: number): string {
+  return (bps / 100).toFixed(2);
+}
+
 export function centsToDollarsInput(cents: number): string {
   return (cents / 100).toFixed(2);
 }

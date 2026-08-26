@@ -7,11 +7,22 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Category, Goal, GoalContribution, GoalStatus, Transaction
+from app.deposit_utils import simple_interest_cents
+from app.models import (
+    Category,
+    Deposit,
+    DepositStatus,
+    DepositType,
+    Goal,
+    GoalContribution,
+    GoalStatus,
+    Transaction,
+)
 from app.schemas import (
     CategorySpend,
     CurrencyMonthSplit,
     CurrencyOverview,
+    DepositSummaryItem,
     GoalProgress,
     MonthOverview,
     TrendPoint,
@@ -72,23 +83,41 @@ def month_overview(
         .group_by(GoalContribution.currency_code)
         .all()
     )
+    # Money locked in deposits is unavailable until maturity/return.
+    deposited_rows = (
+        db.query(
+            Deposit.currency_code,
+            func.coalesce(func.sum(Deposit.principal_cents), 0).label("total"),
+        )
+        .filter(
+            Deposit.start_date >= start,
+            Deposit.start_date <= end,
+            Deposit.status != DepositStatus.cancelled.value,
+        )
+        .group_by(Deposit.currency_code)
+        .all()
+    )
 
     income_map = {r.currency_code: int(r.total) for r in income_rows}
     expense_map = {r.currency_code: int(r.total) for r in expense_rows}
     saved_map = {r.currency_code: int(r.total) for r in saved_rows}
-    codes = sorted(set(income_map) | set(expense_map) | set(saved_map))
+    deposited_map = {r.currency_code: int(r.total) for r in deposited_rows}
+    codes = sorted(
+        set(income_map) | set(expense_map) | set(saved_map) | set(deposited_map)
+    )
 
     currencies = []
     for code in codes:
         income = income_map.get(code, 0)
         expense = expense_map.get(code, 0)
         saved = saved_map.get(code, 0)
+        deposited = deposited_map.get(code, 0)
         currencies.append(
             CurrencyOverview(
                 currency_code=code,
                 income_cents=income,
                 expense_cents=expense,
-                net_cents=income - expense - saved,
+                net_cents=income - expense - saved - deposited,
             )
         )
 
@@ -162,6 +191,50 @@ def goals_progress(db: Session = Depends(get_db)):
             )
         )
     return result
+
+
+@router.get("/deposits-summary", response_model=list[DepositSummaryItem])
+def deposits_summary(db: Session = Depends(get_db)):
+    deposits = (
+        db.query(Deposit)
+        .filter(Deposit.status == DepositStatus.active.value)
+        .order_by(Deposit.currency_code)
+        .all()
+    )
+    bucket: dict[str, dict[str, int]] = {}
+    for deposit in deposits:
+        if deposit.currency_code not in bucket:
+            bucket[deposit.currency_code] = {
+                "active_count": 0,
+                "principal_cents": 0,
+                "current_value_cents": 0,
+            }
+        accrued = 0
+        if (
+            deposit.type == DepositType.bank.value
+            and deposit.annual_rate_bps is not None
+        ):
+            accrued = simple_interest_cents(
+                deposit.principal_cents,
+                deposit.annual_rate_bps,
+                deposit.start_date,
+                deposit.end_date,
+            )
+        bucket[deposit.currency_code]["active_count"] += 1
+        bucket[deposit.currency_code]["principal_cents"] += deposit.principal_cents
+        bucket[deposit.currency_code]["current_value_cents"] += (
+            deposit.principal_cents + accrued
+        )
+
+    return [
+        DepositSummaryItem(
+            currency_code=code,
+            active_count=vals["active_count"],
+            principal_cents=vals["principal_cents"],
+            current_value_cents=vals["current_value_cents"],
+        )
+        for code, vals in sorted(bucket.items())
+    ]
 
 
 @router.get("/trends", response_model=list[TrendPoint])

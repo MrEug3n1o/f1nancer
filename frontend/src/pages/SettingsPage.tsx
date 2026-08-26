@@ -9,9 +9,27 @@ import type {
   Settings,
   ThemeMode,
 } from "../types";
-import { LanguageSwitcher } from "../components/LanguageSwitcher";
-import { normalizeLocale } from "../locales";
 import { applyTheme } from "../utils";
+
+type UpdateInfo = {
+  version?: string;
+  status: string;
+  message: string;
+  error: string | null;
+  current_version?: string;
+  current_sha: string | null;
+  latest_sha: string | null;
+  update_available: boolean;
+  can_update: boolean;
+  log: string;
+  github_repo?: string;
+  branch?: string;
+};
+
+function shortSha(sha: string | null | undefined): string {
+  if (!sha) return "—";
+  return sha.slice(0, 7);
+}
 
 export function SettingsPage() {
   const {
@@ -22,7 +40,6 @@ export function SettingsPage() {
   } = useApp();
 
   const [theme, setTheme] = useState<ThemeMode>("system");
-  const [locale, setLocale] = useState("");
   const [firstDay, setFirstDay] = useState<"monday" | "sunday">("monday");
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
   const [addCode, setAddCode] = useState("");
@@ -34,11 +51,12 @@ export function SettingsPage() {
   const [editingCatId, setEditingCatId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
 
   useEffect(() => {
     if (!settings) return;
     setTheme(settings.theme);
-    setLocale(normalizeLocale(settings.locale));
     setFirstDay(settings.first_day_of_week);
     setDefaultCurrency(settings.default_currency_code);
   }, [settings]);
@@ -49,6 +67,66 @@ export function SettingsPage() {
       .then(setCategories)
       .catch(() => setCategories([]));
   }, []);
+
+  useEffect(() => {
+    void api
+      .get<UpdateInfo>("/system/info")
+      .then(setUpdateInfo)
+      .catch(() => setUpdateInfo(null));
+  }, []);
+
+  useEffect(() => {
+    if (!updateInfo || updateInfo.status !== "updating") return;
+    const id = window.setInterval(() => {
+      void api
+        .get<UpdateInfo>("/system/update")
+        .then(setUpdateInfo)
+        .catch(() => undefined);
+    }, 1500);
+    return () => window.clearInterval(id);
+  }, [updateInfo?.status]);
+
+  async function checkForUpdates() {
+    setError(null);
+    setUpdateBusy(true);
+    try {
+      setUpdateInfo(await api.post<UpdateInfo>("/system/update/check", {}));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not check for updates");
+    } finally {
+      setUpdateBusy(false);
+    }
+  }
+
+  async function startAppUpdate() {
+    if (
+      !confirm(
+        "Download/rebuild the latest F1nancer Mac app? This may take several minutes. Your data stays on this machine.",
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    setUpdateBusy(true);
+    try {
+      setUpdateInfo(await api.post<UpdateInfo>("/system/update", {}));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start update");
+    } finally {
+      setUpdateBusy(false);
+    }
+  }
+
+  async function relaunchUpdatedApp() {
+    setError(null);
+    setUpdateBusy(true);
+    try {
+      setUpdateInfo(await api.post<UpdateInfo>("/system/update/relaunch", {}));
+    } catch (err) {
+      setUpdateBusy(false);
+      setError(err instanceof Error ? err.message : "Could not relaunch");
+    }
+  }
 
   const enabledCodes = useMemo(
     () => new Set(currencies.map((c) => c.code)),
@@ -73,7 +151,7 @@ export function SettingsPage() {
     try {
       const updated = await api.patch<Settings>("/settings", {
         theme,
-        locale: normalizeLocale(locale),
+        locale: "en-US",
         first_day_of_week: firstDay,
         default_currency_code: defaultCurrency,
       });
@@ -259,10 +337,6 @@ export function SettingsPage() {
               ]}
             />
           </label>
-          <label className="span-2">
-            Language
-            <LanguageSwitcher value={locale} onChange={setLocale} />
-          </label>
           <label>
             First day of week
             <SegmentedControl
@@ -361,6 +435,79 @@ export function SettingsPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="section">
+        <h2>App updates</h2>
+        <p className="muted">
+          Pull the latest code when possible, rebuild F1nancer.app, then restart
+          to install — no terminal commands needed. Your finance data stays in
+          Application Support.
+        </p>
+        <div className="stack tight">
+          <p>
+            Version{" "}
+            <strong>
+              {updateInfo?.current_version ?? updateInfo?.version ?? "…"}
+            </strong>
+            <span className="muted small">
+              {" "}
+              · installed {shortSha(updateInfo?.current_sha)}
+              {updateInfo?.latest_sha
+                ? ` · latest ${shortSha(updateInfo.latest_sha)}`
+                : ""}
+            </span>
+          </p>
+          {updateInfo?.message ? (
+            <p
+              className={
+                updateInfo.status === "failed" ? "danger-text" : "muted"
+              }
+            >
+              {updateInfo.message}
+              {updateInfo.error ? ` ${updateInfo.error}` : ""}
+            </p>
+          ) : null}
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={updateBusy || updateInfo?.status === "updating"}
+              onClick={() => void checkForUpdates()}
+            >
+              Check for updates
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={
+                updateBusy ||
+                updateInfo?.status === "updating" ||
+                updateInfo?.status === "relaunching"
+              }
+              onClick={() => void startAppUpdate()}
+            >
+              {updateInfo?.status === "updating"
+                ? "Updating…"
+                : "Update to latest"}
+            </button>
+            {updateInfo?.status === "ready" ? (
+              <button
+                type="button"
+                className="btn primary"
+                disabled={updateBusy}
+                onClick={() => void relaunchUpdatedApp()}
+              >
+                Restart &amp; install
+              </button>
+            ) : null}
+          </div>
+          {updateInfo?.log ? (
+            <pre className="update-log" aria-live="polite">
+              {updateInfo.log}
+            </pre>
+          ) : null}
+        </div>
       </section>
 
       <section className="section">
