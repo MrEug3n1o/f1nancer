@@ -19,7 +19,7 @@ import type {
   Settings,
 } from "../types";
 import { DASHBOARD_WIDGET_OPTIONS } from "../types";
-import { formatMoney } from "../utils";
+import { chartFill, formatMoney } from "../utils";
 
 const GOAL_COLORS = [
   "#2f6b4f",
@@ -30,6 +30,62 @@ const GOAL_COLORS = [
   "#7a6b8a",
 ];
 
+const CHART_TOOLTIP_STYLE = {
+  background: "var(--bg-elevated)",
+  border: "1px solid var(--line)",
+  borderRadius: 10,
+  color: "var(--ink)",
+  boxShadow: "var(--shadow)",
+};
+
+function GoalProgressRing({
+  percent,
+  color,
+  size = 148,
+}: {
+  percent: number;
+  color: string;
+  size?: number;
+}) {
+  const stroke = 18;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = Math.min(100, Math.max(0, percent));
+  const dash = (pct / 100) * c;
+
+  return (
+    <div className="goal-pie-chart" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle
+          className="goal-ring-track"
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          strokeWidth={stroke}
+        />
+        {pct > 0 ? (
+          <circle
+            className="goal-ring-progress"
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth={stroke}
+            strokeLinecap={pct > 0 && pct < 100 ? "round" : "butt"}
+            strokeDasharray={`${dash} ${c - dash}`}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        ) : null}
+      </svg>
+      <div className="goal-pie-center" aria-hidden>
+        {Math.round(pct)}%
+      </div>
+    </div>
+  );
+}
+
 const DEFAULT_WIDGETS = [
   "overview",
   "spend_by_category",
@@ -39,8 +95,14 @@ const DEFAULT_WIDGETS = [
 ];
 
 export function DashboardPage() {
-  const { month, settings, locale, refreshSettings, dashboardCustomizing } =
-    useApp();
+  const {
+    month,
+    settings,
+    locale,
+    refreshSettings,
+    dashboardCustomizing,
+    resolvedTheme,
+  } = useApp();
   const widgets = settings?.dashboard_widgets ?? DEFAULT_WIDGETS;
   const [overview, setOverview] = useState<MonthOverview | null>(null);
   const [spend, setSpend] = useState<CategorySpend[]>([]);
@@ -226,18 +288,23 @@ export function DashboardPage() {
                         data={spendForPie}
                         dataKey="total_cents"
                         nameKey="category_name"
-                        innerRadius={55}
-                        outerRadius={95}
-                        paddingAngle={2}
+                        innerRadius={58}
+                        outerRadius={96}
+                        paddingAngle={spendForPie.length > 1 ? 3 : 0}
+                        stroke="none"
+                        cornerRadius={spendForPie.length > 1 ? 6 : 0}
                       >
                         {spendForPie.map((s) => (
                           <Cell
                             key={`${s.category_id}-${s.currency_code}`}
-                            fill={s.color}
+                            fill={chartFill(s.color, resolvedTheme)}
+                            stroke="none"
                           />
                         ))}
                       </Pie>
                       <Tooltip
+                        contentStyle={CHART_TOOLTIP_STYLE}
+                        itemStyle={{ color: "var(--ink)" }}
                         formatter={(value, _name, item) => {
                           const code =
                             (item?.payload as CategorySpend | undefined)
@@ -257,7 +324,9 @@ export function DashboardPage() {
                       <li key={`${s.category_id}-${s.currency_code}`}>
                         <span
                           className="swatch"
-                          style={{ background: s.color }}
+                          style={{
+                            background: chartFill(s.color, resolvedTheme),
+                          }}
                         />
                         {s.category_name}
                         {!spendCurrency ? ` (${s.currency_code})` : ""} —{" "}
@@ -295,7 +364,11 @@ export function DashboardPage() {
                       <ProgressBar
                         value={b.spent_cents}
                         max={b.limit_cents}
-                        color={b.category?.color}
+                        color={
+                          b.category?.color
+                            ? chartFill(b.category.color, resolvedTheme)
+                            : undefined
+                        }
                       />
                     </li>
                   ))}
@@ -328,7 +401,9 @@ export function DashboardPage() {
                       <td>
                         <span
                           className="swatch inline"
-                          style={{ background: s.color }}
+                          style={{
+                            background: chartFill(s.color, resolvedTheme),
+                          }}
                         />
                         {s.category_name}
                       </td>
@@ -355,60 +430,13 @@ export function DashboardPage() {
           ) : (
             <div className="goal-pies">
               {goals.map((g, i) => {
-                const color = GOAL_COLORS[i % GOAL_COLORS.length];
-                const remaining = Math.max(g.target_amount - g.current_amount, 0);
-                const pieData = [
-                  { name: "Saved", value: g.current_amount, fill: color },
-                  { name: "Remaining", value: remaining, fill: "var(--line)" },
-                ].filter((d) => d.value > 0);
-
-                if (pieData.length === 0) {
-                  pieData.push({
-                    name: "Remaining",
-                    value: 1,
-                    fill: "var(--line)",
-                  });
-                }
-
+                const color = chartFill(
+                  GOAL_COLORS[i % GOAL_COLORS.length],
+                  resolvedTheme,
+                );
                 return (
                   <div key={g.id} className="goal-pie">
-                    <div className="chart-wrap goal-pie-chart">
-                      <ResponsiveContainer width="100%" height={160}>
-                        <PieChart>
-                          <Pie
-                            data={pieData}
-                            dataKey="value"
-                            nameKey="name"
-                            innerRadius={40}
-                            outerRadius={62}
-                            paddingAngle={pieData.length > 1 ? 2 : 0}
-                            startAngle={90}
-                            endAngle={-270}
-                          >
-                            {pieData.map((d) => (
-                              <Cell key={d.name} fill={d.fill} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            formatter={(value) =>
-                              typeof value === "number"
-                                ? [
-                                    formatMoney(
-                                      value,
-                                      g.currency_code,
-                                      locale || undefined,
-                                    ),
-                                    "Amount",
-                                  ]
-                                : [value, "Amount"]
-                            }
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="goal-pie-center" aria-hidden>
-                        {g.progress_pct}%
-                      </div>
-                    </div>
+                    <GoalProgressRing percent={g.progress_pct} color={color} />
                     <div className="goal-pie-meta">
                       <strong>{g.name}</strong>
                       <span className="muted">

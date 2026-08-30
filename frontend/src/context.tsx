@@ -8,7 +8,7 @@ import {
 } from "react";
 import { api } from "./api";
 import type { Currency, Settings } from "./types";
-import { applyTheme, currentMonth } from "./utils";
+import { applyTheme, currentMonth, resolveTheme } from "./utils";
 
 interface AppContextValue {
   month: string;
@@ -17,6 +17,7 @@ interface AppContextValue {
   defaultCurrency: string;
   locale: string;
   currencies: Currency[];
+  resolvedTheme: "light" | "dark";
   dashboardCustomizing: boolean;
   setDashboardCustomizing: (value: boolean | ((prev: boolean) => boolean)) => void;
   refreshSettings: () => Promise<void>;
@@ -39,6 +40,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [dashboardCustomizing, setDashboardCustomizing] = useState(false);
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() =>
+    resolveTheme("system"),
+  );
 
   const refreshCurrencies = useCallback(async () => {
     try {
@@ -52,10 +56,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const next = await api.get<Settings>("/settings");
       setSettings(next);
-      applyTheme(next.theme);
+      setResolvedTheme(applyTheme(next.theme));
     } catch {
       setSettings(fallbackSettings);
-      applyTheme("system");
+      setResolvedTheme(applyTheme("system"));
     }
   }, []);
 
@@ -67,13 +71,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!settings?.theme) return;
-    applyTheme(settings.theme);
+    setResolvedTheme(applyTheme(settings.theme));
   }, [settings?.theme]);
 
   useEffect(() => {
     if (!settings || settings.theme !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => applyTheme("system");
+    const onChange = () => setResolvedTheme(applyTheme("system"));
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, [settings]);
@@ -92,6 +96,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         defaultCurrency,
         locale: "en-US",
         currencies,
+        resolvedTheme,
         dashboardCustomizing,
         setDashboardCustomizing,
         refreshSettings,
