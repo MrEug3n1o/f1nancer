@@ -32,7 +32,8 @@ const fallbackSettings: Settings = {
   theme: "system",
   locale: "en-US",
   first_day_of_week: "monday",
-  dashboard_widgets: ["overview", "spend_by_category", "budgets", "goals", "deposits"],
+  dashboard_widgets: ["pocket", "overview", "spend_by_category", "budgets", "goals", "deposits"],
+  dashboard_widget_views: {},
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {

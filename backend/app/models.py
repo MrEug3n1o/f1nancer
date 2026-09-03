@@ -45,8 +45,9 @@ class DepositStatus(str, Enum):
     cancelled = "cancelled"
 
 
-DEFAULT_DASHBOARD_WIDGETS = '["overview","spend_by_category","budgets","goals","deposits"]'
+DEFAULT_DASHBOARD_WIDGETS = '["pocket","overview","spend_by_category","budgets","goals","deposits"]'
 DEFAULT_STATS_CHARTS = '["trends","spend_by_category","by_currency"]'
+DEFAULT_DASHBOARD_WIDGET_VIEWS = "{}"
 
 
 class Currency(Base):
@@ -202,6 +203,7 @@ class RecurringRule(Base):
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
     type: Mapped[str] = mapped_column(String(20), nullable=False)
     cadence: Mapped[str] = mapped_column(String(20), nullable=False)
+    billing_day: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     next_run_date: Mapped[date] = mapped_column(Date, nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -232,4 +234,7 @@ class Settings(Base):
     )
     stats_charts: Mapped[str] = mapped_column(
         Text, nullable=False, default=DEFAULT_STATS_CHARTS
+    )
+    dashboard_widget_views: Mapped[str] = mapped_column(
+        Text, nullable=False, default=DEFAULT_DASHBOARD_WIDGET_VIEWS
     )

@@ -1,10 +1,28 @@
-# Build F1nancer Windows onedir + optional zip for sharing.
+# Build F1nancer Windows onedir + Setup.exe (optional zip for debugging).
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-$InstallZip = if ($env:MAKE_ZIP) { $env:MAKE_ZIP } else { "1" }
+$MakeInstaller = if ($null -ne $env:MAKE_INSTALLER -and $env:MAKE_INSTALLER -ne "") { $env:MAKE_INSTALLER } else { "1" }
+$InstallZip = if ($null -ne $env:MAKE_ZIP -and $env:MAKE_ZIP -ne "") { $env:MAKE_ZIP } else { "0" }
+
+function Find-Iscc {
+  $candidates = @(
+    "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+    "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+  )
+  foreach ($candidate in $candidates) {
+    if ($candidate -and (Test-Path $candidate)) {
+      return $candidate
+    }
+  }
+  $cmd = Get-Command iscc -ErrorAction SilentlyContinue
+  if ($cmd) {
+    return $cmd.Source
+  }
+  throw "Inno Setup compiler (ISCC.exe) not found. Install from https://jrsoftware.org/isinfo.php"
+}
 
 if (-not (Test-Path "frontend\node_modules")) {
   Write-Host "Installing frontend dependencies..."
@@ -45,6 +63,8 @@ if (-not (Test-Path (Join-Path $DistDir "F1nancer.exe"))) {
 
 Copy-Item "desktop\installed_revision.txt" (Join-Path $DistDir "installed_revision.txt") -Force
 
+& "$PSScriptRoot\verify_windows_bundle.ps1" -DistDir $DistDir
+
 $Version = "0.0.0"
 Get-Content "backend\app\version.py" | ForEach-Object {
   if ($_ -match 'APP_VERSION\s*=\s*"([^"]+)"') { $Version = $Matches[1] }
@@ -53,12 +73,27 @@ Get-Content "backend\app\version.py" | ForEach-Object {
 Write-Host ""
 Write-Host "Done: $DistDir"
 
+if ($MakeInstaller -eq "1") {
+  $Iscc = Find-Iscc
+  Write-Host "Building installer with $Iscc"
+  & $Iscc "/DMyAppVersion=$Version" "$PSScriptRoot\f1nancer.iss"
+  if ($LASTEXITCODE -ne 0) {
+    throw "Inno Setup failed with exit code $LASTEXITCODE"
+  }
+  $SetupPath = Join-Path $Root "desktop\dist\F1nancer-$Version-setup.exe"
+  if (-not (Test-Path $SetupPath)) {
+    throw "Installer missing: $SetupPath"
+  }
+  Write-Host "Installer ready: $SetupPath"
+} else {
+  Write-Host "Skip installer (MAKE_INSTALLER=0)."
+}
+
 if ($InstallZip -eq "1") {
   $ZipPath = Join-Path $Root "desktop\dist\F1nancer-$Version-windows.zip"
   if (Test-Path $ZipPath) { Remove-Item $ZipPath -Force }
   Compress-Archive -Path $DistDir -DestinationPath $ZipPath
   Write-Host "Zip ready: $ZipPath"
-  Write-Host "Send this zip to another Windows PC — unzip and run F1nancer.exe"
 } else {
   Write-Host "Skip zip (MAKE_ZIP=0). Run: desktop\dist\F1nancer\F1nancer.exe"
 }

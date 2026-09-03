@@ -25,6 +25,7 @@ from app.schemas import (
     DepositSummaryItem,
     GoalProgress,
     MonthOverview,
+    PocketOverview,
     TrendPoint,
 )
 
@@ -38,82 +39,53 @@ def _month_bounds(month: str) -> tuple[date, date]:
     return start, end
 
 
-@router.get("/month-overview", response_model=MonthOverview)
-def month_overview(
-    month: str = Query(pattern=r"^\d{4}-\d{2}$"),
-    db: Session = Depends(get_db),
-):
-    start, end = _month_bounds(month)
+def _currency_net_overviews(
+    db: Session,
+    start: date | None = None,
+    end: date | None = None,
+) -> list[CurrencyOverview]:
+    income_q = db.query(
+        Transaction.currency_code,
+        func.coalesce(func.sum(Transaction.amount), 0).label("total"),
+    ).filter(Transaction.type == "income")
+    expense_q = db.query(
+        Transaction.currency_code,
+        func.coalesce(func.sum(Transaction.amount), 0).label("total"),
+    ).filter(Transaction.type == "expense")
+    goal_spend_q = db.query(
+        Transaction.currency_code,
+        func.coalesce(func.sum(Transaction.amount), 0).label("total"),
+    ).filter(
+        Transaction.type == "expense",
+        Transaction.goal_id.isnot(None),
+    )
+    saved_q = db.query(
+        GoalContribution.currency_code,
+        func.coalesce(func.sum(GoalContribution.amount), 0).label("total"),
+    )
+    deposited_q = db.query(
+        Deposit.currency_code,
+        func.coalesce(func.sum(Deposit.principal_cents), 0).label("total"),
+    ).filter(Deposit.status != DepositStatus.cancelled.value)
 
-    income_rows = (
-        db.query(
-            Transaction.currency_code,
-            func.coalesce(func.sum(Transaction.amount), 0).label("total"),
-        )
-        .filter(
-            Transaction.type == "income",
-            Transaction.date >= start,
-            Transaction.date <= end,
-        )
-        .group_by(Transaction.currency_code)
-        .all()
-    )
-    expense_rows = (
-        db.query(
-            Transaction.currency_code,
-            func.coalesce(func.sum(Transaction.amount), 0).label("total"),
-        )
-        .filter(
-            Transaction.type == "expense",
-            Transaction.date >= start,
-            Transaction.date <= end,
-        )
-        .group_by(Transaction.currency_code)
-        .all()
-    )
-    # Goal-completion expenses are already counted via contributions (saved).
-    goal_spend_rows = (
-        db.query(
-            Transaction.currency_code,
-            func.coalesce(func.sum(Transaction.amount), 0).label("total"),
-        )
-        .filter(
-            Transaction.type == "expense",
-            Transaction.goal_id.isnot(None),
-            Transaction.date >= start,
-            Transaction.date <= end,
-        )
-        .group_by(Transaction.currency_code)
-        .all()
-    )
-    saved_rows = (
-        db.query(
-            GoalContribution.currency_code,
-            func.coalesce(func.sum(GoalContribution.amount), 0).label("total"),
-        )
-        .filter(
-            GoalContribution.date >= start,
-            GoalContribution.date <= end,
-        )
-        .group_by(GoalContribution.currency_code)
-        .all()
-    )
-    # Principal still locked in deposits that started this month.
-    # Matured/returned deposits are booked as income on complete, so keep
-    # counting them here to avoid double-adding principal into net.
-    deposited_rows = (
-        db.query(
-            Deposit.currency_code,
-            func.coalesce(func.sum(Deposit.principal_cents), 0).label("total"),
-        )
-        .filter(
-            Deposit.start_date >= start,
-            Deposit.start_date <= end,
-            Deposit.status != DepositStatus.cancelled.value,
-        )
-        .group_by(Deposit.currency_code)
-        .all()
-    )
+    if start is not None:
+        income_q = income_q.filter(Transaction.date >= start)
+        expense_q = expense_q.filter(Transaction.date >= start)
+        goal_spend_q = goal_spend_q.filter(Transaction.date >= start)
+        saved_q = saved_q.filter(GoalContribution.date >= start)
+        deposited_q = deposited_q.filter(Deposit.start_date >= start)
+    if end is not None:
+        income_q = income_q.filter(Transaction.date <= end)
+        expense_q = expense_q.filter(Transaction.date <= end)
+        goal_spend_q = goal_spend_q.filter(Transaction.date <= end)
+        saved_q = saved_q.filter(GoalContribution.date <= end)
+        deposited_q = deposited_q.filter(Deposit.start_date <= end)
+
+    income_rows = income_q.group_by(Transaction.currency_code).all()
+    expense_rows = expense_q.group_by(Transaction.currency_code).all()
+    goal_spend_rows = goal_spend_q.group_by(Transaction.currency_code).all()
+    saved_rows = saved_q.group_by(GoalContribution.currency_code).all()
+    deposited_rows = deposited_q.group_by(Deposit.currency_code).all()
 
     income_map = {r.currency_code: int(r.total) for r in income_rows}
     expense_map = {r.currency_code: int(r.total) for r in expense_rows}
@@ -140,12 +112,25 @@ def month_overview(
                 currency_code=code,
                 income_cents=income,
                 expense_cents=expense,
-                # Contributions already reduced net; add goal spend back so it isn't counted twice.
                 net_cents=income - expense - saved - deposited + goal_spend,
             )
         )
+    return currencies
 
+
+@router.get("/month-overview", response_model=MonthOverview)
+def month_overview(
+    month: str = Query(pattern=r"^\d{4}-\d{2}$"),
+    db: Session = Depends(get_db),
+):
+    start, end = _month_bounds(month)
+    currencies = _currency_net_overviews(db, start, end)
     return MonthOverview(month=month, currencies=currencies)
+
+
+@router.get("/pocket", response_model=PocketOverview)
+def pocket_overview(db: Session = Depends(get_db)):
+    return PocketOverview(currencies=_currency_net_overviews(db))
 
 
 @router.get("/spend-by-category", response_model=list[CategorySpend])

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.currency_utils import ensure_currency_row
 from app.models import (
     DEFAULT_DASHBOARD_WIDGETS,
+    DEFAULT_DASHBOARD_WIDGET_VIEWS,
     DEFAULT_STATS_CHARTS,
     Category,
     Currency,
@@ -76,6 +77,7 @@ def seed_database(db: Session) -> None:
                 first_day_of_week="monday",
                 dashboard_widgets=DEFAULT_DASHBOARD_WIDGETS,
                 stats_charts=DEFAULT_STATS_CHARTS,
+                dashboard_widget_views=DEFAULT_DASHBOARD_WIDGET_VIEWS,
             )
         )
     else:
@@ -89,6 +91,8 @@ def seed_database(db: Session) -> None:
             settings.dashboard_widgets = DEFAULT_DASHBOARD_WIDGETS
         if not settings.stats_charts:
             settings.stats_charts = DEFAULT_STATS_CHARTS
+        if not settings.dashboard_widget_views:
+            settings.dashboard_widget_views = DEFAULT_DASHBOARD_WIDGET_VIEWS
         if not settings.default_currency_code:
             settings.default_currency_code = default_code
         ensure_currency_row(db, settings.default_currency_code)

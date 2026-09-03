@@ -4,7 +4,7 @@
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_dynamic_libs
 
 ROOT = Path(SPECPATH).resolve().parent
 BACKEND_APP = ROOT / "backend" / "app"
@@ -62,6 +62,34 @@ if IS_DARWIN:
     datas.append((str(ROOT / "desktop" / "apply_update.sh"), "desktop"))
 elif IS_WINDOWS:
     datas.append((str(ROOT / "desktop" / "apply_update.ps1"), "desktop"))
+    hiddenimports += [
+        "clr",
+        "clr_loader",
+        "clr_loader.ffi",
+        "clr_loader.netfx",
+        "pythonnet",
+        "webview.platforms.winforms",
+        "webview.platforms.edgechromium",
+    ]
+    for package in ("pythonnet", "clr_loader"):
+        pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
+        datas += pkg_datas
+        binaries += pkg_binaries
+        hiddenimports += pkg_hidden
+    try:
+        import webview
+
+        webview_root = Path(webview.__file__).resolve().parent
+        lib_dir = webview_root / "lib"
+        if lib_dir.is_dir():
+            for item in lib_dir.rglob("*"):
+                if item.is_file():
+                    rel_parent = item.parent.relative_to(webview_root)
+                    datas.append((str(item), str(Path("webview") / rel_parent)))
+        datas += collect_data_files("webview")
+        binaries += collect_dynamic_libs("webview")
+    except ImportError:
+        pass
 
 revision = ROOT / "desktop" / "installed_revision.txt"
 if revision.is_file():
@@ -82,12 +110,15 @@ if IS_DARWIN:
 elif IS_WINDOWS and (ROOT / "desktop" / "F1nancer.ico").is_file():
     icon = str(ROOT / "desktop" / "F1nancer.ico")
 
+# UPX can break Windows .NET / WebView2 native shims.
+use_upx = not IS_WINDOWS
+
 a = Analysis(
     [str(ROOT / "desktop" / "run.py")],
     pathex=[str(ROOT / "backend")],
     binaries=binaries,
     datas=datas,
-    hiddenimports=hiddenimports,
+    hiddenimports=list(dict.fromkeys(hiddenimports)),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -107,7 +138,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=use_upx,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -122,7 +153,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=False,
-    upx=True,
+    upx=use_upx,
     upx_exclude=[],
     name="F1nancer",
 )

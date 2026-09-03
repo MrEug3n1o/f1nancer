@@ -7,9 +7,66 @@ import socket
 import sys
 import threading
 import time
+import traceback
 import urllib.error
 import urllib.request
+from datetime import datetime
 from pathlib import Path
+
+
+def _default_data_dir() -> Path:
+    override = os.environ.get("F1NANCER_DATA_DIR")
+    if override:
+        return Path(override).expanduser()
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "F1nancer"
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(base) / "F1nancer"
+    return Path.home() / ".local" / "share" / "F1nancer"
+
+
+def _log_path() -> Path:
+    path = _default_data_dir() / "desktop.log"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _log(message: str) -> None:
+    try:
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with _log_path().open("a", encoding="utf-8") as handle:
+            handle.write(f"{stamp} {message}\n")
+    except OSError:
+        pass
+
+
+def _show_error(title: str, message: str) -> None:
+    _log(f"ERROR {title}: {message}")
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(  # type: ignore[attr-defined]
+            None,
+            message,
+            title,
+            0x10,
+        )
+    except Exception:
+        pass
+
+
+def _fatal(title: str, message: str, exc: BaseException | None = None) -> None:
+    if exc is not None:
+        detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        _log(detail)
+        message = f"{message}\n\n{exc}\n\nLog: {_log_path()}"
+    else:
+        message = f"{message}\n\nLog: {_log_path()}"
+    _show_error(title, message)
+    raise SystemExit(1)
 
 
 def _project_root() -> Path:
@@ -57,11 +114,14 @@ def _wait_for_server(url: str, timeout: float = 15.0) -> None:
 
 
 def main() -> None:
+    _log(f"Starting F1nancer frozen={getattr(sys, 'frozen', False)} exe={sys.executable}")
     root = _project_root()
     _prepare_environment(root)
 
     import uvicorn
     import webview
+
+    _log(f"pywebview backend candidates loaded from {webview.__file__}")
 
     port = _free_port()
     host = "127.0.0.1"
@@ -80,12 +140,28 @@ def main() -> None:
 
     try:
         _wait_for_server(url)
+        _log(f"Server ready at {url}; opening window")
         webview.create_window("F1nancer", url, width=1280, height=840, min_size=(900, 600))
         webview.start()
     finally:
         server.should_exit = True
         thread.join(timeout=5)
+        _log("Shutdown complete")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit as exc:
+        if exc.code not in (0, None):
+            _show_error("F1nancer", f"F1nancer exited with code {exc.code}.\n\nLog: {_log_path()}")
+        raise
+    except Exception as exc:  # noqa: BLE001
+        _fatal(
+            "F1nancer failed to start",
+            "The app could not start. Common fixes on Windows:\n"
+            "1) Unzip the whole folder and run F1nancer.exe inside it\n"
+            "2) Install WebView2 Runtime\n"
+            "3) Right-click the zip → Properties → Unblock, then extract again",
+            exc,
+        )

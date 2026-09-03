@@ -7,6 +7,7 @@ from app.currency_utils import require_enabled_currency
 from app.database import get_db
 from app.models import (
     DEFAULT_DASHBOARD_WIDGETS,
+    DEFAULT_DASHBOARD_WIDGET_VIEWS,
     DEFAULT_STATS_CHARTS,
     Settings,
 )
@@ -16,6 +17,7 @@ from app.seed import parse_json_list
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 VALID_DASHBOARD = {
+    "pocket",
     "overview",
     "spend_by_category",
     "budgets",
@@ -30,6 +32,109 @@ VALID_STATS = {
     "category_table",
     "budgets",
 }
+
+DEFAULT_WIDGET_VIEWS = {
+    "pocket": "hero",
+    "overview": "cards",
+    "spend_by_category": "donut",
+    "budgets": "bars",
+    "category_table": "table",
+    "goals": "rings",
+    "deposits": "rings",
+}
+
+VALID_WIDGET_VIEWS = {
+    "pocket": {"hero"},
+    "overview": {
+        "cards",
+        "bar",
+        "horizontal_bar",
+        "stacked",
+        "area",
+        "line",
+        "pie",
+        "donut",
+        "radial",
+        "treemap",
+    },
+    "spend_by_category": {
+        "donut",
+        "pie",
+        "bar",
+        "bar_vertical",
+        "radial",
+        "treemap",
+        "area",
+        "line",
+    },
+    "budgets": {
+        "bars",
+        "bar_chart",
+        "bar_vertical",
+        "stacked",
+        "radial",
+        "pie",
+        "donut",
+        "table",
+    },
+    "category_table": {
+        "table",
+        "bar",
+        "bar_vertical",
+        "pie",
+        "donut",
+        "radial",
+        "treemap",
+    },
+    "goals": {
+        "rings",
+        "bars",
+        "bar_vertical",
+        "pie",
+        "donut",
+        "radial",
+        "treemap",
+    },
+    "deposits": {
+        "rings",
+        "bars",
+        "list",
+        "bar_chart",
+        "bar_vertical",
+        "pie",
+        "donut",
+        "radial",
+        "treemap",
+    },
+}
+
+
+def _parse_widget_views(raw: str | None) -> dict[str, str]:
+    defaults = dict(DEFAULT_WIDGET_VIEWS)
+    if not raw:
+        return defaults
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return defaults
+    if not isinstance(parsed, dict):
+        return defaults
+    for widget_id, view in parsed.items():
+        if widget_id not in VALID_WIDGET_VIEWS:
+            continue
+        if isinstance(view, str) and view in VALID_WIDGET_VIEWS[widget_id]:
+            defaults[widget_id] = view
+    return defaults
+
+
+def _sanitize_widget_views(views: dict[str, str]) -> dict[str, str]:
+    merged = dict(DEFAULT_WIDGET_VIEWS)
+    for widget_id, view in views.items():
+        if widget_id not in VALID_WIDGET_VIEWS:
+            continue
+        if view in VALID_WIDGET_VIEWS[widget_id]:
+            merged[widget_id] = view
+    return merged
 
 
 def _to_out(settings: Settings) -> SettingsOut:
@@ -46,6 +151,8 @@ def _to_out(settings: Settings) -> SettingsOut:
     }
     if "deposits" not in widgets and set(widgets) == legacy_without_deposits:
         widgets = [*widgets, "deposits"]
+    if "pocket" not in widgets:
+        widgets = ["pocket", *widgets]
     merged_widgets = [
         w
         for w in dict.fromkeys(
@@ -61,6 +168,7 @@ def _to_out(settings: Settings) -> SettingsOut:
         first_day_of_week=settings.first_day_of_week or "monday",
         dashboard_widgets=merged_widgets,
         stats_charts=charts,
+        dashboard_widget_views=_parse_widget_views(settings.dashboard_widget_views),
     )
 
 
@@ -96,6 +204,9 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
     if "stats_charts" in data and data["stats_charts"] is not None:
         charts = [c for c in data["stats_charts"] if c in VALID_STATS]
         settings.stats_charts = json.dumps(charts)
+    if "dashboard_widget_views" in data and data["dashboard_widget_views"] is not None:
+        merged = _sanitize_widget_views(data["dashboard_widget_views"])
+        settings.dashboard_widget_views = json.dumps(merged)
 
     db.commit()
     db.refresh(settings)

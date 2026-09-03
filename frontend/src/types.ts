@@ -93,6 +93,7 @@ export interface RecurringRule {
   category_id: number;
   type: CategoryType;
   cadence: Cadence;
+  billing_day: number;
   next_run_date: string;
   note: string | null;
   active: boolean;
@@ -107,6 +108,7 @@ export interface Settings {
   locale: string;
   first_day_of_week: "monday" | "sunday";
   dashboard_widgets: string[];
+  dashboard_widget_views: Record<string, string>;
 }
 
 export interface CurrencyOverview {
@@ -118,6 +120,10 @@ export interface CurrencyOverview {
 
 export interface MonthOverview {
   month: string;
+  currencies: CurrencyOverview[];
+}
+
+export interface PocketOverview {
   currencies: CurrencyOverview[];
 }
 
@@ -154,6 +160,7 @@ export interface CurrencyMonthSplit {
 }
 
 export const DASHBOARD_WIDGET_OPTIONS = [
+  { id: "pocket", label: "My pocket" },
   { id: "overview", label: "Month overview" },
   { id: "spend_by_category", label: "Spend by category" },
   { id: "budgets", label: "Budget progress" },
@@ -161,3 +168,94 @@ export const DASHBOARD_WIDGET_OPTIONS = [
   { id: "goals", label: "Goals" },
   { id: "deposits", label: "Deposits" },
 ] as const;
+
+export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_OPTIONS)[number]["id"];
+
+export const DEFAULT_WIDGET_VIEWS: Record<DashboardWidgetId, string> = {
+  pocket: "hero",
+  overview: "cards",
+  spend_by_category: "donut",
+  budgets: "bars",
+  category_table: "table",
+  goals: "rings",
+  deposits: "rings",
+};
+
+export const WIDGET_VIEW_OPTIONS: Record<
+  DashboardWidgetId,
+  readonly { id: string; label: string }[]
+> = {
+  pocket: [{ id: "hero", label: "Hero card" }],
+  overview: [
+    { id: "cards", label: "Stat cards" },
+    { id: "bar", label: "Vertical bars" },
+    { id: "horizontal_bar", label: "Horizontal bars" },
+    { id: "stacked", label: "Stacked bars" },
+    { id: "area", label: "Area chart" },
+    { id: "line", label: "Line chart" },
+    { id: "pie", label: "Pie chart" },
+    { id: "donut", label: "Donut chart" },
+    { id: "radial", label: "Radial bars" },
+    { id: "treemap", label: "Treemap" },
+  ],
+  spend_by_category: [
+    { id: "donut", label: "Donut chart" },
+    { id: "pie", label: "Pie chart" },
+    { id: "bar", label: "Horizontal bars" },
+    { id: "bar_vertical", label: "Vertical bars" },
+    { id: "radial", label: "Radial bars" },
+    { id: "treemap", label: "Treemap" },
+    { id: "area", label: "Area chart" },
+    { id: "line", label: "Line chart" },
+  ],
+  budgets: [
+    { id: "bars", label: "Progress bars" },
+    { id: "bar_chart", label: "Horizontal bars" },
+    { id: "bar_vertical", label: "Vertical bars" },
+    { id: "stacked", label: "Stacked bars" },
+    { id: "radial", label: "Radial bars" },
+    { id: "pie", label: "Pie chart" },
+    { id: "donut", label: "Donut chart" },
+    { id: "table", label: "Table" },
+  ],
+  category_table: [
+    { id: "table", label: "Table" },
+    { id: "bar", label: "Horizontal bars" },
+    { id: "bar_vertical", label: "Vertical bars" },
+    { id: "pie", label: "Pie chart" },
+    { id: "donut", label: "Donut chart" },
+    { id: "radial", label: "Radial bars" },
+    { id: "treemap", label: "Treemap" },
+  ],
+  goals: [
+    { id: "rings", label: "Progress rings" },
+    { id: "bars", label: "Progress bars" },
+    { id: "bar_vertical", label: "Vertical bars" },
+    { id: "pie", label: "Pie chart" },
+    { id: "donut", label: "Donut chart" },
+    { id: "radial", label: "Radial bars" },
+    { id: "treemap", label: "Treemap" },
+  ],
+  deposits: [
+    { id: "rings", label: "Progress rings" },
+    { id: "bars", label: "Progress bars" },
+    { id: "list", label: "List" },
+    { id: "bar_chart", label: "Horizontal bars" },
+    { id: "bar_vertical", label: "Vertical bars" },
+    { id: "pie", label: "Pie chart" },
+    { id: "donut", label: "Donut chart" },
+    { id: "radial", label: "Radial bars" },
+    { id: "treemap", label: "Treemap" },
+  ],
+};
+
+export function resolveWidgetView(
+  widgetId: DashboardWidgetId,
+  views: Record<string, string> | undefined,
+): string {
+  const saved = views?.[widgetId];
+  if (saved && WIDGET_VIEW_OPTIONS[widgetId].some((o) => o.id === saved)) {
+    return saved;
+  }
+  return DEFAULT_WIDGET_VIEWS[widgetId];
+}

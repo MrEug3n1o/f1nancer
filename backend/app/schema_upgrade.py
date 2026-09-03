@@ -8,7 +8,11 @@ from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
 from app.iso_currencies import currency_name
-from app.models import DEFAULT_DASHBOARD_WIDGETS, DEFAULT_STATS_CHARTS
+from app.models import (
+    DEFAULT_DASHBOARD_WIDGETS,
+    DEFAULT_DASHBOARD_WIDGET_VIEWS,
+    DEFAULT_STATS_CHARTS,
+)
 
 
 def ensure_schema(engine: Engine) -> None:
@@ -104,6 +108,11 @@ def ensure_schema(engine: Engine) -> None:
             ("first_day_of_week", "VARCHAR(10)", "monday"),
             ("dashboard_widgets", "TEXT", DEFAULT_DASHBOARD_WIDGETS.replace("'", "''")),
             ("stats_charts", "TEXT", DEFAULT_STATS_CHARTS.replace("'", "''")),
+            (
+                "dashboard_widget_views",
+                "TEXT",
+                DEFAULT_DASHBOARD_WIDGET_VIEWS.replace("'", "''"),
+            ),
         ]
         for col, typ, default in extras:
             if col not in settings_cols:
@@ -210,4 +219,30 @@ def ensure_schema(engine: Engine) -> None:
             if "goal_id" not in txn_cols:
                 conn.execute(
                     text("ALTER TABLE transactions ADD COLUMN goal_id INTEGER")
+                )
+
+        tables_now = set(inspect(engine).get_table_names())
+        if "recurring_rules" in tables_now:
+            recurring_cols = {
+                c["name"] for c in inspect(engine).get_columns("recurring_rules")
+            }
+            if "billing_day" not in recurring_cols:
+                conn.execute(
+                    text(
+                        "ALTER TABLE recurring_rules ADD COLUMN billing_day INTEGER DEFAULT 1"
+                    )
+                )
+                conn.execute(
+                    text(
+                        """
+                        UPDATE recurring_rules
+                        SET billing_day = CAST(strftime('%d', next_run_date) AS INTEGER)
+                        WHERE billing_day IS NULL
+                        """
+                    )
+                )
+                conn.execute(
+                    text(
+                        "UPDATE recurring_rules SET billing_day = 1 WHERE billing_day IS NULL"
+                    )
                 )

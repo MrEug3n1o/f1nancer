@@ -244,7 +244,8 @@ class RecurringCreate(BaseModel):
     category_id: int
     type: Literal["income", "expense"]
     cadence: Literal["weekly", "monthly", "yearly"]
-    next_run_date: Date
+    billing_day: int = Field(default=1, ge=1, le=31)
+    next_run_date: Date | None = None
     note: str | None = None
     active: bool = True
 
@@ -260,6 +261,7 @@ class RecurringUpdate(BaseModel):
     category_id: int | None = None
     type: Literal["income", "expense"] | None = None
     cadence: Literal["weekly", "monthly", "yearly"] | None = None
+    billing_day: int | None = Field(default=None, ge=1, le=31)
     next_run_date: Date | None = None
     note: str | None = None
     active: bool | None = None
@@ -279,6 +281,7 @@ class RecurringOut(BaseModel):
     category_id: int
     type: str
     cadence: str
+    billing_day: int
     next_run_date: Date
     note: str | None
     active: bool
@@ -296,6 +299,7 @@ class SettingsOut(BaseModel):
     first_day_of_week: str
     dashboard_widgets: list[str]
     stats_charts: list[str]
+    dashboard_widget_views: dict[str, str]
 
 
 class SettingsUpdate(BaseModel):
@@ -305,6 +309,7 @@ class SettingsUpdate(BaseModel):
     first_day_of_week: Literal["monday", "sunday"] | None = None
     dashboard_widgets: list[str] | None = None
     stats_charts: list[str] | None = None
+    dashboard_widget_views: dict[str, str] | None = None
 
     @field_validator("default_currency_code")
     @classmethod
@@ -321,6 +326,10 @@ class CurrencyOverview(BaseModel):
 
 class MonthOverview(BaseModel):
     month: str
+    currencies: list[CurrencyOverview]
+
+
+class PocketOverview(BaseModel):
     currencies: list[CurrencyOverview]
 
 
