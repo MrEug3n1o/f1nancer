@@ -1,10 +1,10 @@
 # Verify a Windows PyInstaller onedir contains pywebview/.NET native runtime pieces.
 # Fails the build if anything critical is missing (silent hang at launch otherwise).
-$ErrorActionPreference = "Stop"
-
 param(
   [Parameter(Mandatory = $true)][string]$DistDir
 )
+
+$ErrorActionPreference = "Stop"
 
 function Test-BundleName([string]$Label, [string]$Pattern) {
   $found = Get-ChildItem -Path $DistDir -Recurse -File -ErrorAction SilentlyContinue |

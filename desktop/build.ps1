@@ -1,5 +1,6 @@
 # Build F1nancer Windows onedir + Setup.exe (optional zip for debugging).
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
 
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
@@ -55,6 +56,9 @@ Write-Host "Revision: $Revision"
 
 Write-Host "Packaging F1nancer..."
 & $Python -m PyInstaller desktop\f1nancer.spec --noconfirm --distpath desktop\dist --workpath desktop\build
+if ($LASTEXITCODE -ne 0) {
+  throw "PyInstaller failed with exit code $LASTEXITCODE"
+}
 
 $DistDir = Join-Path $Root "desktop\dist\F1nancer"
 if (-not (Test-Path (Join-Path $DistDir "F1nancer.exe"))) {

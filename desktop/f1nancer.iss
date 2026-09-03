@@ -7,7 +7,7 @@
 #define MyAppExeName "F1nancer.exe"
 
 [Setup]
-AppId={{A7E3C91F-4B2D-4E8A-9F16-8C3D2B1A0E7F}
+AppId={{A7E3C91F-4B2D-4E8A-9F16-8C3D2B1A0E7F}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}

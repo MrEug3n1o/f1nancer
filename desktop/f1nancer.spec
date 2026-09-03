@@ -58,6 +58,81 @@ hiddenimports = [
     "app.schema_upgrade",
 ]
 
+def _collect_optional(package: str) -> None:
+    try:
+        pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: collect_all({package!r}) failed: {exc}")
+        return
+    datas.extend(pkg_datas)
+    binaries.extend(pkg_binaries)
+    hiddenimports.extend(pkg_hidden)
+
+
+def _bundle_windows_native() -> None:
+    """Copy pythonnet / WebView2 DLLs that PyInstaller often misses."""
+    wanted = ("Python.Runtime.dll", "ClrLoader.dll", "WebView2Loader.dll")
+    roots: list[Path] = []
+    for mod_name in ("webview", "clr_loader", "pythonnet"):
+        try:
+            mod = __import__(mod_name)
+        except ImportError:
+            continue
+        path = getattr(mod, "__file__", None)
+        if path:
+            roots.append(Path(path).resolve().parent)
+        for entry in getattr(mod, "__path__", []):
+            roots.append(Path(entry))
+    try:
+        import site
+
+        roots.extend(Path(p) for p in site.getsitepackages())
+        user_site = site.getusersitepackages()
+        if user_site:
+            roots.append(Path(user_site))
+    except Exception:
+        pass
+
+    candidates: dict[str, list[Path]] = {name: [] for name in wanted}
+    seen: set[str] = set()
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for name in wanted:
+            for item in root.rglob(name):
+                if not item.is_file():
+                    continue
+                key = str(item.resolve()).lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                candidates[name].append(item)
+
+    def _score(path: Path) -> int:
+        text = str(path).lower()
+        score = 0
+        if "x64" in text or "amd64" in text or "win-x64" in text:
+            score += 3
+        if "arm64" in text or "win-arm64" in text:
+            score -= 2
+        if "x86" in text or "win-x86" in text:
+            score -= 1
+        return score
+
+    for name, paths in candidates.items():
+        if not paths:
+            print(f"WARNING: {name} not found in site-packages")
+            continue
+        chosen = max(paths, key=_score)
+        binaries.append((str(chosen), "."))
+        print(f"INFO: bundling {name} from {chosen}")
+        for extra in paths:
+            if extra == chosen:
+                continue
+            dest = extra.parent.name if extra.parent.name not in {".", ""} else "."
+            binaries.append((str(extra), dest))
+
+
 if IS_DARWIN:
     datas.append((str(ROOT / "desktop" / "apply_update.sh"), "desktop"))
 elif IS_WINDOWS:
@@ -71,11 +146,8 @@ elif IS_WINDOWS:
         "webview.platforms.winforms",
         "webview.platforms.edgechromium",
     ]
-    for package in ("pythonnet", "clr_loader"):
-        pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
-        datas += pkg_datas
-        binaries += pkg_binaries
-        hiddenimports += pkg_hidden
+    for package in ("clr_loader", "pythonnet", "clr"):
+        _collect_optional(package)
     try:
         import webview
 
@@ -90,6 +162,7 @@ elif IS_WINDOWS:
         binaries += collect_dynamic_libs("webview")
     except ImportError:
         pass
+    _bundle_windows_native()
 
 revision = ROOT / "desktop" / "installed_revision.txt"
 if revision.is_file():
