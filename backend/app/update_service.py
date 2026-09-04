@@ -241,6 +241,23 @@ def _sha_from_commitish(value: str | None) -> str | None:
     return None
 
 
+def _sha_prefix(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = value.strip().lower()
+    return text[:7] if len(text) >= 7 else None
+
+
+def _update_is_available(
+    latest_version: str, current_sha: str | None, latest_sha: str | None
+) -> bool:
+    if _parse_version(latest_version) > _parse_version(APP_VERSION):
+        return True
+    current_prefix = _sha_prefix(current_sha)
+    latest_prefix = _sha_prefix(latest_sha)
+    return bool(current_prefix and latest_prefix and current_prefix != latest_prefix)
+
+
 def _http_error_message(exc: urllib.error.HTTPError) -> str:
     if exc.code == 404:
         return "No GitHub releases found."
@@ -324,12 +341,15 @@ def check_for_updates() -> dict:
         latest_version = _normalize_tag(tag)
         latest_sha = _sha_from_commitish(str(release.get("target_commitish") or "") or None)
         current = _read_installed_sha()
-        available = _parse_version(latest_version) > _parse_version(APP_VERSION)
+        available = _update_is_available(latest_version, current, latest_sha)
         packaged = _is_packaged()
         if packaged:
             _platform_asset(release)
         if available:
-            message = f"Version {latest_version} is available."
+            if _parse_version(latest_version) > _parse_version(APP_VERSION):
+                message = f"Version {latest_version} is available."
+            else:
+                message = f"A newer {latest_version} build is available."
             if not packaged:
                 message += " " + _source_checkout_message()
         else:
@@ -554,17 +574,16 @@ def _default_windows_install_dir() -> Path:
 def _windows_install_dir() -> Path:
     if getattr(sys, "frozen", False):
         running = Path(sys.executable).resolve().parent
-        if (running / "F1nancer.exe").is_file() or running.name == "F1nancer":
-            preferred = _default_windows_install_dir()
-            try:
-                if running.resolve() == preferred.resolve():
-                    return preferred
-                if preferred in running.parents or running == preferred:
-                    return preferred
-            except OSError:
-                pass
-            return preferred
+        if (running / "F1nancer.exe").is_file() or running.name.lower() == "f1nancer":
+            return running
     return _default_windows_install_dir()
+
+
+def _windows_powershell() -> str:
+    system_root = os.environ.get("SystemRoot") or r"C:\Windows"
+    return str(
+        Path(system_root) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    )
 
 
 def _mac_install_dir() -> Path:
@@ -621,31 +640,46 @@ def relaunch_updated_app() -> dict:
         progress=100,
     )
 
-    with open(log_file, "a", encoding="utf-8") as log:
-        if IS_WINDOWS:
-            dest = _windows_install_dir()
+    if IS_WINDOWS:
+        dest = _windows_install_dir()
+        with open(log_file, "a", encoding="utf-8") as log:
             log.write(f"\n--- relaunch pid={pid} pkg={package} dest={dest} ---\n")
-            subprocess.Popen(
-                [
-                    "powershell",
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-File",
-                    str(helper),
-                    str(package),
-                    str(pid),
-                    str(dest),
-                ],
-                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-                | getattr(subprocess, "DETACHED_PROCESS", 0),
-                env=_spawn_env(),
-                stdout=log,
-                stderr=log,
-                close_fds=True,
+            log.flush()
+        create_no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        create_new_process_group = getattr(
+            subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200
+        )
+        create_breakaway_from_job = 0x01000000
+        proc = subprocess.Popen(
+            [
+                _windows_powershell(),
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(helper),
+                str(package),
+                str(pid),
+                str(dest),
+            ],
+            creationflags=create_no_window
+            | create_new_process_group
+            | create_breakaway_from_job,
+            env=_spawn_env(),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            cwd=str(DATA_DIR),
+        )
+        time.sleep(0.3)
+        if proc.poll() is not None:
+            raise RuntimeError(
+                f"Update helper exited immediately with code {proc.returncode}."
             )
-        else:
-            dest = _mac_install_dir()
+    else:
+        dest = _mac_install_dir()
+        with open(log_file, "a", encoding="utf-8") as log:
             log.write(f"\n--- relaunch pid={pid} pkg={package} dest={dest} ---\n")
             subprocess.Popen(
                 ["/bin/bash", str(helper), str(package), str(pid), str(dest)],

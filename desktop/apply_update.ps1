@@ -15,6 +15,19 @@ function Write-Log([string]$Message) {
   Add-Content -Path $Log -Value "$ts $Message"
 }
 
+function Test-FileUnlocked([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return $true
+  }
+  try {
+    $stream = [System.IO.File]::Open($Path, 'Open', 'ReadWrite', 'None')
+    $stream.Close()
+    return $true
+  } catch {
+    return $false
+  }
+}
+
 Write-Log "apply_update start src=$AppSrc pid=$WaitPid dest=$AppDest"
 
 if (-not (Test-Path -LiteralPath $AppSrc)) {
@@ -40,30 +53,41 @@ if ($proc) {
   }
 }
 
+$leftover = Get-Process -Name "F1nancer" -ErrorAction SilentlyContinue
+if ($leftover) {
+  Write-Log "Stopping leftover F1nancer processes: $($leftover.Id -join ', ')"
+  $leftover | Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Seconds 1
+}
+
+$newExe = Join-Path $AppDest "F1nancer.exe"
+for ($i = 0; $i -lt 60; $i++) {
+  if (Test-FileUnlocked $newExe) { break }
+  Write-Log "Waiting for unlock: $newExe"
+  Start-Sleep -Milliseconds 500
+}
+
 Start-Sleep -Seconds 1
 
 $parent = Split-Path -Parent $AppDest
 New-Item -ItemType Directory -Force -Path $parent | Out-Null
 
-$setupArgs = @(
-  "/VERYSILENT",
-  "/NORESTART",
-  "/SUPPRESSMSGBOXES",
-  "/CLOSEAPPLICATIONS",
-  "/DIR=`"$AppDest`""
-)
-Write-Log "Running installer $AppSrc $($setupArgs -join ' ')"
+try {
+  Unblock-File -LiteralPath $AppSrc -ErrorAction SilentlyContinue
+} catch {}
+
+$setupArgs = "/VERYSILENT /NORESTART /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /DIR=`"$AppDest`""
+Write-Log "Running installer $AppSrc $setupArgs"
 $installer = Start-Process -FilePath $AppSrc -ArgumentList $setupArgs -Wait -PassThru
 if ($installer.ExitCode -ne 0) {
   Write-Log "Installer failed with exit code $($installer.ExitCode)"
   exit $installer.ExitCode
 }
 
-$newExe = Join-Path $AppDest "F1nancer.exe"
 if (-not (Test-Path -LiteralPath $newExe)) {
   Write-Log "Installer finished but exe missing: $newExe"
   exit 1
 }
 
-Start-Process -FilePath $newExe
+Start-Process -FilePath $newExe -WorkingDirectory $AppDest
 Write-Log "apply_update done"
