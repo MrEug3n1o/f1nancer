@@ -151,6 +151,18 @@ def _restore() -> None:
         _state.current_version = APP_VERSION
 
 
+def _read_installed_sha() -> str | None:
+    if not INSTALLED_REVISION_FILE.is_file():
+        return None
+    value = INSTALLED_REVISION_FILE.read_text(encoding="utf-8").strip()
+    return value or None
+
+
+def _write_installed_sha(sha: str) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    INSTALLED_REVISION_FILE.write_text(sha + "\n", encoding="utf-8")
+
+
 def seed_installed_revision_from_bundle() -> None:
     """Copy bundled revision stamp into DATA_DIR on first launch."""
     if INSTALLED_REVISION_FILE.is_file():
@@ -171,7 +183,11 @@ def seed_installed_revision_from_bundle() -> None:
 
 
 _restore()
-seed_installed_revision_from_bundle()
+try:
+    seed_installed_revision_from_bundle()
+except Exception:
+    # Stamp copy is best-effort; never block the desktop app from starting.
+    pass
 
 
 def snapshot() -> dict:
@@ -302,18 +318,6 @@ def _python_cmd() -> str | None:
         if found:
             return found
     return None
-
-
-def _read_installed_sha() -> str | None:
-    if not INSTALLED_REVISION_FILE.is_file():
-        return None
-    value = INSTALLED_REVISION_FILE.read_text(encoding="utf-8").strip()
-    return value or None
-
-
-def _write_installed_sha(sha: str) -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    INSTALLED_REVISION_FILE.write_text(sha + "\n", encoding="utf-8")
 
 
 def _remote_head_sha() -> str:
