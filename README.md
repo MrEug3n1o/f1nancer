@@ -93,7 +93,7 @@ Optional debug zip: `$env:MAKE_ZIP="1"; .\desktop\build.ps1`
 
 ### Build without a Windows PC
 
-Push a `v*` tag or run the **Desktop release** workflow (`workflow_dispatch`) on GitHub Actions. A tag publishes the Mac DMG and Windows Setup.exe as a GitHub Release.
+Push a `v*` tag or run the **Desktop release** workflow (`workflow_dispatch`) on GitHub Actions. Either path publishes the Mac DMG and Windows Setup.exe as a GitHub Release. Manual runs tag the release as `v` plus `APP_VERSION` from `backend/app/version.py`.
 
 ## In-app updates (Mac & Windows)
 
