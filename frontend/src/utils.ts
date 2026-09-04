@@ -73,13 +73,39 @@ export function resolveTheme(
     : "light";
 }
 
+type PywebviewApi = {
+  set_title_bar_theme?: (theme: "light" | "dark") => Promise<unknown>;
+};
+
+function desktopApi(): PywebviewApi | undefined {
+  return (
+    window as Window & { pywebview?: { api?: PywebviewApi } }
+  ).pywebview?.api;
+}
+
+function syncWindowsTitleBar(theme: "light" | "dark"): void {
+  const api = desktopApi();
+  if (typeof api?.set_title_bar_theme !== "function") return;
+  void api.set_title_bar_theme(theme).catch(() => undefined);
+}
+
 export function applyTheme(
   theme: "light" | "dark" | "system" | string | null | undefined,
 ): "light" | "dark" {
   const resolved = resolveTheme(theme);
   document.documentElement.dataset.theme = resolved;
   document.documentElement.style.colorScheme = resolved;
+  syncWindowsTitleBar(resolved);
   return resolved;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("pywebviewready", () => {
+    const current = document.documentElement.dataset.theme;
+    if (current === "dark" || current === "light") {
+      syncWindowsTitleBar(current);
+    }
+  });
 }
 
 function parseHexColor(

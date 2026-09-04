@@ -95,6 +95,110 @@ def _prepare_environment(root: Path) -> None:
     os.environ.setdefault("F1NANCER_DESKTOP", "1")
 
 
+# Keep in sync with frontend/src/index.css --bg / --ink.
+_TITLE_BAR = {
+    "light": {"bg": "#f3efe6", "fg": "#1c2a1f"},
+    "dark": {"bg": "#141a16", "fg": "#e8efe9"},
+}
+
+DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+DWMWA_BORDER_COLOR = 34
+DWMWA_CAPTION_COLOR = 35
+DWMWA_TEXT_COLOR = 36
+
+
+def _hex_to_colorref(color: str) -> int:
+    value = color.removeprefix("#")
+    red = int(value[0:2], 16)
+    green = int(value[2:4], 16)
+    blue = int(value[4:6], 16)
+    return red | (green << 8) | (blue << 16)
+
+
+def _system_prefers_dark() -> bool:
+    if sys.platform != "win32":
+        return False
+    try:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        ) as key:
+            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+        return int(value) == 0
+    except OSError:
+        return False
+
+
+def _native_hwnd(window: object) -> int:
+    native = getattr(window, "native", None)
+    handle = getattr(native, "Handle", None)
+    if handle is None:
+        return 0
+    if hasattr(handle, "ToInt64"):
+        return int(handle.ToInt64())
+    if hasattr(handle, "ToInt32"):
+        return int(handle.ToInt32())
+    try:
+        return int(handle)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _apply_windows_title_bar(hwnd: int, theme: str) -> None:
+    if sys.platform != "win32" or hwnd == 0:
+        return
+    colors = _TITLE_BAR["dark" if theme == "dark" else "light"]
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        dwmapi = ctypes.WinDLL("dwmapi")
+        dwmapi.DwmSetWindowAttribute.argtypes = [
+            wintypes.HWND,
+            wintypes.DWORD,
+            wintypes.LPCVOID,
+            wintypes.DWORD,
+        ]
+        dwmapi.DwmSetWindowAttribute.restype = wintypes.HRESULT
+
+        def set_attr(attribute: int, value: int) -> None:
+            payload = ctypes.c_int(value)
+            dwmapi.DwmSetWindowAttribute(
+                wintypes.HWND(hwnd),
+                attribute,
+                ctypes.byref(payload),
+                ctypes.sizeof(payload),
+            )
+
+        set_attr(DWMWA_USE_IMMERSIVE_DARK_MODE, 1 if theme == "dark" else 0)
+        caption = _hex_to_colorref(colors["bg"])
+        text = _hex_to_colorref(colors["fg"])
+        set_attr(DWMWA_CAPTION_COLOR, caption)
+        set_attr(DWMWA_TEXT_COLOR, text)
+        set_attr(DWMWA_BORDER_COLOR, caption)
+    except Exception as exc:  # noqa: BLE001
+        _log(f"Could not theme Windows title bar: {exc}")
+
+
+class _DesktopApi:
+    def __init__(self) -> None:
+        self._hwnd = 0
+        self._theme = "light"
+
+    def _attach(self, window: object, theme: str) -> None:
+        self._hwnd = _native_hwnd(window)
+        self.set_title_bar_theme(theme)
+
+    def _reapply(self, *_args: object) -> None:
+        _apply_windows_title_bar(self._hwnd, self._theme)
+
+    def set_title_bar_theme(self, theme: str) -> None:
+        self._theme = "dark" if theme == "dark" else "light"
+        _apply_windows_title_bar(self._hwnd, self._theme)
+
+
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -185,7 +289,25 @@ def main() -> None:
                 exc,
             )
         _log(f"Server ready at {url}; opening window")
-        webview.create_window("F1nancer", url, width=1280, height=840, min_size=(900, 600))
+        initial_theme = "dark" if _system_prefers_dark() else "light"
+        api = _DesktopApi()
+        window = webview.create_window(
+            "F1nancer",
+            url,
+            width=1280,
+            height=840,
+            min_size=(900, 600),
+            background_color=_TITLE_BAR[initial_theme]["bg"],
+            js_api=api,
+        )
+
+        def on_before_show(native_window: object) -> None:
+            api._attach(native_window, initial_theme)
+
+        window.events.before_show += on_before_show
+        window.events.shown += api._reapply
+        window.events.maximized += api._reapply
+        window.events.restored += api._reapply
         webview.start()
     finally:
         server.should_exit = True
