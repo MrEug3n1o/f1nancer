@@ -140,23 +140,16 @@ export function AppUpdatePanel({ onError }: Props) {
     }
   }
 
-  function reloadPage() {
-    window.location.reload();
-  }
-
   const meta = statusMeta(info);
   const version = info?.current_version ?? info?.version ?? "…";
   const progress = Math.max(0, Math.min(100, info?.progress ?? 0));
-  const isDesktop = (info?.mode ?? "web") === "desktop";
   const disabled = busy || active;
   const primaryLabel =
     info?.status === "updating"
       ? "Updating…"
       : info?.status === "relaunching"
         ? "Restarting…"
-        : isDesktop
-          ? "Update & restart"
-          : "Update now";
+        : "Update & restart";
 
   return (
     <section className="section update-panel">
@@ -164,9 +157,8 @@ export function AppUpdatePanel({ onError }: Props) {
         <div>
           <h2>App updates</h2>
           <p className="muted update-lead">
-            {isDesktop
-              ? "One click rebuilds F1nancer.app, installs it, and restarts. Your data stays on this Mac."
-              : "Pulls the latest code when possible and rebuilds the app UI. Your data stays on this Mac."}
+            One click rebuilds the desktop app, installs it, and restarts. Your
+            data stays on this computer.
           </p>
         </div>
         <span className={`update-status update-status-${meta.tone}`}>
@@ -228,7 +220,7 @@ export function AppUpdatePanel({ onError }: Props) {
         >
           Check
         </button>
-        {info?.status === "ready" && isDesktop ? (
+        {info?.status === "ready" ? (
           <button
             type="button"
             className="btn primary"
@@ -236,10 +228,6 @@ export function AppUpdatePanel({ onError }: Props) {
             onClick={() => void installAndRestart()}
           >
             Install &amp; restart
-          </button>
-        ) : info?.status === "ready" && !isDesktop ? (
-          <button type="button" className="btn primary" onClick={reloadPage}>
-            Reload app
           </button>
         ) : (
           <button

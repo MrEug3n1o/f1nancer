@@ -85,9 +85,10 @@ def _prepare_environment(root: Path) -> None:
         static_dir = root / "frontend" / "dist"
 
     if not static_dir.is_dir():
-        raise SystemExit(
+        _fatal(
+            "F1nancer failed to start",
             f"Frontend build not found at {static_dir}.\n"
-            "Run: cd frontend && npm run build"
+            "Run: cd frontend && npm run build",
         )
 
     os.environ.setdefault("F1NANCER_STATIC_DIR", str(static_dir))
@@ -100,17 +101,29 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def _wait_for_server(url: str, timeout: float = 15.0) -> None:
+def _wait_for_server(
+    url: str,
+    *,
+    thread: threading.Thread,
+    errors: list[BaseException],
+    timeout: float = 15.0,
+) -> None:
     deadline = time.time() + timeout
     health = f"{url}/health"
     while time.time() < deadline:
+        if errors:
+            raise errors[0]
+        if not thread.is_alive():
+            raise RuntimeError("Local server thread exited before becoming ready")
         try:
             with urllib.request.urlopen(health, timeout=0.5) as response:
                 if response.status == 200:
                     return
-        except (urllib.error.URLError, TimeoutError, ConnectionError):
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
             time.sleep(0.05)
-    raise SystemExit(f"Server did not become ready at {health}")
+    if errors:
+        raise errors[0]
+    raise RuntimeError(f"Server did not become ready at {health}")
 
 
 def main() -> None:
@@ -121,6 +134,15 @@ def main() -> None:
     import uvicorn
     import webview
 
+    try:
+        from app.main import app as fastapi_app
+    except Exception as exc:  # noqa: BLE001
+        _fatal(
+            "F1nancer failed to start",
+            "Could not load the application backend.",
+            exc,
+        )
+
     _log(f"pywebview backend candidates loaded from {webview.__file__}")
 
     port = _free_port()
@@ -128,18 +150,40 @@ def main() -> None:
     url = f"http://{host}:{port}"
 
     config = uvicorn.Config(
-        "app.main:app",
+        fastapi_app,
         host=host,
         port=port,
         log_level="warning",
         access_log=False,
+        loop="asyncio",
+        http="h11",
+        ws="none",
+        lifespan="on",
     )
     server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, daemon=True)
+    server.install_signal_handlers = False  # type: ignore[method-assign]
+
+    server_error: list[BaseException] = []
+
+    def _run_server() -> None:
+        try:
+            server.run()
+        except BaseException as exc:  # noqa: BLE001
+            _log("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
+            server_error.append(exc)
+
+    thread = threading.Thread(target=_run_server, daemon=True, name="f1nancer-server")
     thread.start()
 
     try:
-        _wait_for_server(url)
+        try:
+            _wait_for_server(url, thread=thread, errors=server_error)
+        except Exception as exc:  # noqa: BLE001
+            _fatal(
+                "F1nancer failed to start",
+                "The local app server could not start.",
+                exc,
+            )
         _log(f"Server ready at {url}; opening window")
         webview.create_window("F1nancer", url, width=1280, height=840, min_size=(900, 600))
         webview.start()
@@ -152,9 +196,7 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except SystemExit as exc:
-        if exc.code not in (0, None):
-            _show_error("F1nancer", f"F1nancer exited with code {exc.code}.\n\nLog: {_log_path()}")
+    except SystemExit:
         raise
     except Exception as exc:  # noqa: BLE001
         _fatal(

@@ -22,12 +22,15 @@ datas = [
 ]
 binaries = []
 hiddenimports = [
+    "h11",
     "uvicorn.logging",
     "uvicorn.loops",
     "uvicorn.loops.auto",
+    "uvicorn.loops.asyncio",
     "uvicorn.protocols",
     "uvicorn.protocols.http",
     "uvicorn.protocols.http.auto",
+    "uvicorn.protocols.http.h11_impl",
     "uvicorn.protocols.websockets",
     "uvicorn.protocols.websockets.auto",
     "uvicorn.lifespan",
@@ -55,6 +58,7 @@ hiddenimports = [
     "app.version",
     "app.deposit_utils",
     "app.currency_utils",
+    "app.iso_currencies",
     "app.schema_upgrade",
 ]
 
@@ -168,7 +172,7 @@ revision = ROOT / "desktop" / "installed_revision.txt"
 if revision.is_file():
     datas.append((str(revision), "."))
 
-for package in ("webview", "uvicorn", "fastapi", "starlette", "anyio", "sqlalchemy", "pydantic"):
+for package in ("webview", "uvicorn", "fastapi", "starlette", "anyio", "sqlalchemy", "pydantic", "h11"):
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
     datas += pkg_datas
     binaries += pkg_binaries

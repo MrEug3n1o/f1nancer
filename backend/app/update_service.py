@@ -54,7 +54,7 @@ class UpdateState:
     latest_sha: str | None = None
     update_available: bool = False
     can_update: bool = True
-    mode: str = "desktop"  # desktop | web
+    mode: str = "desktop"
     source: str | None = None
     progress: int = 0
     phase: str = ""
@@ -66,13 +66,6 @@ class UpdateState:
 _lock = threading.Lock()
 _state = UpdateState()
 _worker: threading.Thread | None = None
-
-
-def _is_desktop() -> bool:
-    if getattr(sys, "frozen", False):
-        return True
-    flag = os.environ.get("F1NANCER_DESKTOP", "").strip().lower()
-    return flag in ("1", "true", "yes")
 
 
 def _append_log(line: str) -> None:
@@ -199,7 +192,7 @@ def snapshot() -> dict:
             "latest_sha": _state.latest_sha,
             "update_available": _state.update_available,
             "can_update": _state.can_update,
-            "mode": "desktop" if _is_desktop() else "web",
+            "mode": "desktop",
             "source": _state.source,
             "progress": _state.progress,
             "phase": _state.phase,
@@ -487,7 +480,7 @@ def check_for_updates() -> dict:
         _state.error = None
         _state.phase = "Checking"
         _state.progress = 5
-        _state.mode = "desktop" if _is_desktop() else "web"
+        _state.mode = "desktop"
         # Keep prior build logs; don't spam check output into the UI log.
 
     try:
@@ -570,22 +563,6 @@ def _local_head_sha_quiet(root: Path) -> str:
     return (proc.stdout or "").strip()
 
 
-def _build_web(root: Path) -> None:
-    _append_log("Building frontend…")
-    _set(phase="Building frontend", progress=35)
-    frontend = root / "frontend"
-    npm = _which("npm") or "npm"
-    if not (frontend / "node_modules").is_dir():
-        _run_streaming([npm, "install"], cwd=frontend)
-    _run_streaming([npm, "run", "build"], cwd=frontend)
-    req = root / "backend" / "requirements.txt"
-    if req.is_file():
-        _append_log("Updating Python packages…")
-        _set(phase="Updating Python packages", progress=75)
-        py = _python_cmd() or "python3"
-        _run_streaming([py, "-m", "pip", "install", "-r", str(req)], cwd=root / "backend")
-
-
 def _build_desktop(root: Path) -> Path:
     if IS_WINDOWS:
         build_ps1 = root / "desktop" / "build.ps1"
@@ -625,7 +602,6 @@ def _build_desktop(root: Path) -> Path:
 
 
 def _update_worker(*, auto_relaunch: bool) -> None:
-    desktop = _is_desktop()
     try:
         _set(
             status="updating",
@@ -636,29 +612,22 @@ def _update_worker(*, auto_relaunch: bool) -> None:
             log_lines=[],
             progress=5,
             phase="Starting",
-            mode="desktop" if desktop else "web",
+            mode="desktop",
         )
         _ensure_tools(need_npm=True)
         root = _prepare_source()
         sha = _local_head_sha(root)
         _set(latest_sha=sha, current_sha=_read_installed_sha())
 
-        if desktop:
-            _build_desktop(root)
-        else:
-            _build_web(root)
+        _build_desktop(root)
 
         _write_installed_sha(sha)
         _set(
             status="ready",
             message=(
                 "Update ready — restarting to finish install…"
-                if desktop and auto_relaunch
-                else (
-                    "Update ready. Restart to install the new app."
-                    if desktop
-                    else "Update ready. Reload the page to use it."
-                )
+                if auto_relaunch
+                else "Update ready. Restart to install the new app."
             ),
             update_available=False,
             current_sha=sha,
@@ -669,7 +638,7 @@ def _update_worker(*, auto_relaunch: bool) -> None:
             phase="Ready",
         )
 
-        if desktop and auto_relaunch:
+        if auto_relaunch:
             time.sleep(1.2)
             try:
                 relaunch_updated_app()

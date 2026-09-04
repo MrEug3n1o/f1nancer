@@ -1,40 +1,14 @@
 # F1nancer
 
-Local-first personal finance app. Track income and expenses, budgets, savings goals, recurring payments, and simple charts. No login — data lives in a SQLite file on your machine.
+Local-first personal finance **desktop app**. Track income and expenses, budgets, savings goals, recurring payments, and simple charts. No login — data lives in a SQLite file on your machine.
 
 ## Stack
 
-- **Backend:** FastAPI + SQLAlchemy + SQLite (`backend/`)
-- **Frontend:** React + TypeScript + Vite (`frontend/`)
-- **Desktop:** pywebview + PyInstaller (`desktop/`) — macOS `.app`/DMG and Windows Setup.exe
+- **UI:** React + TypeScript + Vite (`frontend/`), bundled into the app
+- **Local engine:** FastAPI + SQLAlchemy + SQLite (`backend/`)
+- **Desktop shell:** pywebview + PyInstaller (`desktop/`) — macOS `.app`/DMG and Windows Setup.exe
 
-## Run locally (web)
-
-### Backend
-
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-PYTHONPATH=. uvicorn app.main:app --reload --port 8000
-```
-
-API docs: http://localhost:8000/docs
-
-The API is served under the `/api` prefix (e.g. `/api/transactions`).
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open http://localhost:5173
-
-## Mac desktop app
+## Mac
 
 Build and install a double-clickable app (Spotlight):
 
@@ -70,7 +44,7 @@ Send `desktop/dist/F1nancer-<version>.dmg`. On the other Mac: open the DMG → d
 
 > A `.dmg` is macOS-only. For Windows, use the Setup.exe below — not a DMG.
 
-## Windows desktop app
+## Windows
 
 Download `F1nancer-<version>-setup.exe` from [Releases](https://github.com/MrEug3n1o/f1nancer/releases), double-click it, and finish the wizard. The app lands in the Start Menu (`%LOCALAPPDATA%\Programs\F1nancer`). Requires [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (preinstalled on most Windows 10/11 systems).
 
@@ -85,7 +59,7 @@ That produces:
 - `desktop\dist\F1nancer\` — runnable folder with `F1nancer.exe`
 - `desktop\dist\F1nancer-<version>-setup.exe` — installer to send to another PC
 
-If nothing happens when you launch the app, check `%LOCALAPPDATA%\F1nancer\desktop.log`. Install [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) if the log mentions WebView2.
+If the app fails to open, check `%LOCALAPPDATA%\F1nancer\desktop.log`. Install [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) if the log mentions WebView2.
 
 Skip the installer: `$env:MAKE_INSTALLER="0"; .\desktop\build.ps1`
 
@@ -116,6 +90,25 @@ source backend/.venv/bin/activate   # Windows: backend\.venv\Scripts\activate
 pip install -r desktop/requirements.txt
 python desktop/run.py
 ```
+
+### UI development
+
+For hot-reload while editing the interface, run the local engine and Vite together:
+
+```bash
+cd backend
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+PYTHONPATH=. uvicorn app.main:app --reload --port 8000
+```
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Vite proxies `/api` to the local engine. Open the URL Vite prints (usually http://localhost:5173) only while developing the UI — this is not a shipped website.
 
 ## Backup
 
