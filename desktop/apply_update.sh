@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
-# Wait for the running F1nancer process to exit, then install the new .app and open it.
+# Wait for the running F1nancer process to exit, then install from a DMG (or .app) and open it.
 set -euo pipefail
 
-APP_SRC="${1:?Usage: apply_update.sh /path/to/F1nancer.app <pid>}"
-WAIT_PID="${2:?Usage: apply_update.sh /path/to/F1nancer.app <pid>}"
-APP_DEST="${HOME}/Applications/F1nancer.app"
+APP_SRC="${1:?Usage: apply_update.sh <dmg-or-app> <pid> [dest]}"
+WAIT_PID="${2:?Usage: apply_update.sh <dmg-or-app> <pid> [dest]}"
+APP_DEST="${3:-${HOME}/Applications/F1nancer.app}"
 LOG="${HOME}/Library/Application Support/F1nancer/apply_update.log"
+MOUNT=""
 
 mkdir -p "${HOME}/Library/Application Support/F1nancer"
 exec >>"$LOG" 2>&1
-echo "$(date '+%Y-%m-%d %H:%M:%S') apply_update start src=$APP_SRC pid=$WAIT_PID"
+echo "$(date '+%Y-%m-%d %H:%M:%S') apply_update start src=$APP_SRC pid=$WAIT_PID dest=$APP_DEST"
 
-if [[ ! -d "$APP_SRC" ]]; then
-  echo "Missing built app: $APP_SRC"
-  exit 1
-fi
+cleanup() {
+  if [[ -n "${MOUNT:-}" ]]; then
+    hdiutil detach "$MOUNT" -quiet -force >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
 
 for _ in $(seq 1 240); do
   if ! kill -0 "$WAIT_PID" 2>/dev/null; then
@@ -23,7 +26,6 @@ for _ in $(seq 1 240); do
   sleep 0.5
 done
 
-# If the process is still alive, try a gentle terminate then continue.
 if kill -0 "$WAIT_PID" 2>/dev/null; then
   echo "Process $WAIT_PID still alive; sending TERM"
   kill "$WAIT_PID" 2>/dev/null || true
@@ -32,14 +34,32 @@ fi
 
 sleep 1
 
-mkdir -p "${HOME}/Applications"
+APP_FROM=""
+if [[ -f "$APP_SRC" && "$APP_SRC" == *.dmg ]]; then
+  MOUNT="${TMPDIR:-/tmp}/f1nancer-update-mnt-$$"
+  mkdir -p "$MOUNT"
+  echo "Attaching $APP_SRC at $MOUNT"
+  hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT" "$APP_SRC"
+  if [[ -d "$MOUNT/F1nancer.app" ]]; then
+    APP_FROM="$MOUNT/F1nancer.app"
+  else
+    APP_FROM="$(find "$MOUNT" -maxdepth 2 -name 'F1nancer.app' -type d | head -n 1 || true)"
+  fi
+elif [[ -d "$APP_SRC" ]]; then
+  APP_FROM="$APP_SRC"
+fi
 
-# Prefer ditto for a cleaner Mac bundle copy.
+if [[ -z "$APP_FROM" || ! -d "$APP_FROM" ]]; then
+  echo "Missing F1nancer.app in update package: $APP_SRC"
+  exit 1
+fi
+
+mkdir -p "$(dirname "$APP_DEST")"
 rm -rf "$APP_DEST"
 if command -v ditto >/dev/null 2>&1; then
-  ditto "$APP_SRC" "$APP_DEST"
+  ditto "$APP_FROM" "$APP_DEST"
 else
-  cp -R "$APP_SRC" "$APP_DEST"
+  cp -R "$APP_FROM" "$APP_DEST"
 fi
 
 xattr -dr com.apple.quarantine "$APP_DEST" 2>/dev/null || true

@@ -1,4 +1,4 @@
-# Wait for the running F1nancer process to exit, then install the new onedir and relaunch.
+# Wait for the running F1nancer process to exit, then silently run Setup.exe and relaunch.
 param(
   [Parameter(Mandatory = $true)][string]$AppSrc,
   [Parameter(Mandatory = $true)][int]$WaitPid,
@@ -17,9 +17,8 @@ function Write-Log([string]$Message) {
 
 Write-Log "apply_update start src=$AppSrc pid=$WaitPid dest=$AppDest"
 
-$exe = Join-Path $AppSrc "F1nancer.exe"
-if (-not (Test-Path $exe)) {
-  Write-Log "Missing built exe: $exe"
+if (-not (Test-Path -LiteralPath $AppSrc)) {
+  Write-Log "Missing installer: $AppSrc"
   exit 1
 }
 
@@ -46,13 +45,25 @@ Start-Sleep -Seconds 1
 $parent = Split-Path -Parent $AppDest
 New-Item -ItemType Directory -Force -Path $parent | Out-Null
 
-if (Test-Path $AppDest) {
-  Remove-Item -Recurse -Force $AppDest
+$setupArgs = @(
+  "/VERYSILENT",
+  "/NORESTART",
+  "/SUPPRESSMSGBOXES",
+  "/CLOSEAPPLICATIONS",
+  "/DIR=`"$AppDest`""
+)
+Write-Log "Running installer $AppSrc $($setupArgs -join ' ')"
+$installer = Start-Process -FilePath $AppSrc -ArgumentList $setupArgs -Wait -PassThru
+if ($installer.ExitCode -ne 0) {
+  Write-Log "Installer failed with exit code $($installer.ExitCode)"
+  exit $installer.ExitCode
 }
 
-Copy-Item -Recurse -Force $AppSrc $AppDest
-Write-Log "Installed to $AppDest"
-
 $newExe = Join-Path $AppDest "F1nancer.exe"
+if (-not (Test-Path -LiteralPath $newExe)) {
+  Write-Log "Installer finished but exe missing: $newExe"
+  exit 1
+}
+
 Start-Process -FilePath $newExe
 Write-Log "apply_update done"

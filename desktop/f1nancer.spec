@@ -236,7 +236,7 @@ coll = COLLECT(
 )
 
 # Keep CFBundleShortVersionString in sync with app.version.APP_VERSION
-_version = "0.1.0"
+_version = "0.1.1"
 _version_file = BACKEND_APP / "version.py"
 if _version_file.is_file():
     for _line in _version_file.read_text(encoding="utf-8").splitlines():

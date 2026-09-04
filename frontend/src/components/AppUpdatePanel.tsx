@@ -7,6 +7,7 @@ export type UpdateInfo = {
   message: string;
   error: string | null;
   current_version?: string;
+  latest_version?: string | null;
   current_sha: string | null;
   latest_sha: string | null;
   update_available: boolean;
@@ -142,7 +143,9 @@ export function AppUpdatePanel({ onError }: Props) {
 
   const meta = statusMeta(info);
   const version = info?.current_version ?? info?.version ?? "…";
+  const latestLabel = info?.latest_version || shortSha(info?.latest_sha);
   const progress = Math.max(0, Math.min(100, info?.progress ?? 0));
+  const cannotInstall = info?.can_update === false;
   const disabled = busy || active;
   const primaryLabel =
     info?.status === "updating"
@@ -157,8 +160,8 @@ export function AppUpdatePanel({ onError }: Props) {
         <div>
           <h2>App updates</h2>
           <p className="muted update-lead">
-            One click rebuilds the desktop app, installs it, and restarts. Your
-            data stays on this computer.
+            One click downloads the latest build from GitHub, installs it, and
+            restarts. Your data stays on this computer.
           </p>
         </div>
         <span className={`update-status update-status-${meta.tone}`}>
@@ -178,7 +181,7 @@ export function AppUpdatePanel({ onError }: Props) {
           </div>
           <div>
             <span className="muted small">Latest</span>
-            <strong>{shortSha(info?.latest_sha)}</strong>
+            <strong>{latestLabel}</strong>
           </div>
         </div>
       </div>
@@ -233,7 +236,7 @@ export function AppUpdatePanel({ onError }: Props) {
           <button
             type="button"
             className="btn primary"
-            disabled={disabled}
+            disabled={disabled || cannotInstall}
             onClick={() => void startAppUpdate()}
           >
             {primaryLabel}

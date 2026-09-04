@@ -71,16 +71,12 @@ Push a `v*` tag or run the **Desktop release** workflow (`workflow_dispatch`) on
 
 ## In-app updates (Mac & Windows)
 
-Settings → **App updates** can check GitHub (`main`) and rebuild from source on both platforms.
+Settings → **App updates** checks [GitHub Releases](https://github.com/MrEug3n1o/f1nancer/releases) and installs the latest desktop build. No Git, Node.js, or Python is required on the laptop.
 
-Prerequisites on the machine running the app:
+- **Windows:** downloads `F1nancer-<version>-setup.exe` and runs it silently into `%LOCALAPPDATA%\Programs\F1nancer`
+- **Mac:** downloads `F1nancer-<version>.dmg` and replaces the installed `F1nancer.app`
 
-| | Mac | Windows |
-|---|-----|---------|
-| Tools | Git, Node.js, Python 3 | Git, Node.js, Python 3 |
-| Notes | Xcode Command Line Tools help with Git/Python | WebView2 for the UI |
-
-After an update, Windows installs into `%LOCALAPPDATA%\Programs\F1nancer\` and relaunches from there.
+Your data stays in the app data folder. A source checkout cannot self-install from Settings — use `desktop/build.sh` or `desktop/build.ps1` instead.
 
 ## Desktop development (no packaging)
 
