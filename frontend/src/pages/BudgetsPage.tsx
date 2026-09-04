@@ -1,23 +1,27 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
-import { EmptyState, ErrorBanner, Money, ProgressBar, Select } from "../components/ui";
+import { IconPencil, IconTrash } from "../components/NavIcons";
+import { EmptyState, ErrorBanner, IconButton, Money, ProgressBar, Select } from "../components/ui";
 import { useApp } from "../context";
 import type { Budget, Category } from "../types";
-import { dollarsToCents } from "../utils";
+import { centsToDollarsInput, dollarsToCents, formatMonthLabel } from "../utils";
 
 export function BudgetsPage() {
-  const { month, defaultCurrency, currencies } = useApp();
+  const { month, defaultCurrency, currencies, locale } = useApp();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState("");
   const [limit, setLimit] = useState("");
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setCurrencyCode(defaultCurrency);
-  }, [defaultCurrency]);
+    if (!editingId) {
+      setCurrencyCode((code) => code || defaultCurrency);
+    }
+  }, [defaultCurrency, editingId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,18 +44,35 @@ export function BudgetsPage() {
     void load();
   }, [load]);
 
+  function startEdit(budget: Budget) {
+    setEditingId(budget.id);
+    setCategoryId(String(budget.category_id));
+    setLimit(centsToDollarsInput(budget.limit_cents));
+    setCurrencyCode(budget.currency_code);
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setCategoryId("");
+    setLimit("");
+    setCurrencyCode(defaultCurrency);
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     try {
-      await api.post("/budgets", {
+      const payload = {
         category_id: Number(categoryId),
         limit_cents: dollarsToCents(limit),
-        month,
         currency_code: currencyCode,
-      });
-      setCategoryId("");
-      setLimit("");
+      };
+      if (editingId) {
+        await api.patch(`/budgets/${editingId}?month=${month}`, payload);
+      } else {
+        await api.post(`/budgets?month=${month}`, payload);
+      }
+      resetForm();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -59,16 +80,24 @@ export function BudgetsPage() {
   }
 
   async function onDelete(id: number) {
-    if (!confirm("Delete this budget?")) return;
+    if (!confirm("Delete this monthly budget? It will be removed for every month.")) {
+      return;
+    }
+    setError(null);
     try {
       await api.delete(`/budgets/${id}`);
+      if (editingId === id) resetForm();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
     }
   }
 
-  const usedKeys = new Set(budgets.map((b) => `${b.category_id}:${b.currency_code}`));
+  const usedKeys = new Set(
+    budgets
+      .filter((b) => b.id !== editingId)
+      .map((b) => `${b.category_id}:${b.currency_code}`),
+  );
   const available = categories.filter(
     (c) => !usedKeys.has(`${c.id}:${currencyCode}`),
   );
@@ -77,7 +106,10 @@ export function BudgetsPage() {
     <div className="stack">
       <ErrorBanner message={error} />
       <section className="section">
-        <h2>Set monthly limit</h2>
+        <h2>{editingId ? "Edit monthly limit" : "Set monthly limit"}</h2>
+        <p className="muted">
+          Limits repeat every month, like a subscription, until you edit or delete them.
+        </p>
         <form className="form-grid" onSubmit={onSubmit}>
           <label>
             Category
@@ -100,8 +132,18 @@ export function BudgetsPage() {
               required
               value={currencyCode}
               onChange={(e) => {
-                setCurrencyCode(e.target.value);
-                setCategoryId("");
+                const next = e.target.value;
+                setCurrencyCode(next);
+                setCategoryId((current) => {
+                  if (!current) return current;
+                  const taken = budgets.some(
+                    (b) =>
+                      b.id !== editingId &&
+                      String(b.category_id) === current &&
+                      b.currency_code === next,
+                  );
+                  return taken ? "" : current;
+                });
               }}
             >
               {currencies.map((c) => (
@@ -124,21 +166,34 @@ export function BudgetsPage() {
             />
           </label>
           <div className="form-actions">
-            <button type="submit" className="btn primary" disabled={!available.length}>
-              Add budget
+            <button
+              type="submit"
+              className="btn primary"
+              disabled={!available.length}
+            >
+              {editingId ? "Update budget" : "Add budget"}
             </button>
+            {editingId ? (
+              <button type="button" className="btn ghost" onClick={resetForm}>
+                Cancel
+              </button>
+            ) : null}
           </div>
         </form>
       </section>
 
       <section className="section">
-        <h2>Budgets this month</h2>
+        <h2>Monthly limits</h2>
+        <p className="muted">
+          Spent vs limit for {formatMonthLabel(month, locale)}. Limits stay the
+          same every month.
+        </p>
         {loading ? (
           <p className="muted">Loading…</p>
         ) : budgets.length === 0 ? (
           <EmptyState
             title="No budgets yet"
-            hint="Pick an expense category and set a spending limit."
+            hint="Pick an expense category and set a spending limit. It will apply every month."
           />
         ) : (
           <ul className="progress-list">
@@ -154,13 +209,16 @@ export function BudgetsPage() {
                       <Money cents={b.spent_cents} currency={b.currency_code} /> /{" "}
                       <Money cents={b.limit_cents} currency={b.currency_code} />
                     </span>
-                    <button
-                      type="button"
-                      className="btn ghost small danger-text"
+                    <IconButton label="Edit" edit onClick={() => startEdit(b)}>
+                      <IconPencil className="btn-icon" />
+                    </IconButton>
+                    <IconButton
+                      label="Delete"
+                      danger
                       onClick={() => void onDelete(b.id)}
                     >
-                      Delete
-                    </button>
+                      <IconTrash className="btn-icon" />
+                    </IconButton>
                   </div>
                 </div>
                 <ProgressBar

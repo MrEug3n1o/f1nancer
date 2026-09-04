@@ -8,13 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deposit_utils import simple_interest_cents
+from app.goal_utils import goal_saved_cents
 from app.models import (
     Category,
     Deposit,
     DepositStatus,
     DepositType,
     Goal,
-    GoalContribution,
     GoalStatus,
     Transaction,
 )
@@ -52,17 +52,6 @@ def _currency_net_overviews(
         Transaction.currency_code,
         func.coalesce(func.sum(Transaction.amount), 0).label("total"),
     ).filter(Transaction.type == "expense")
-    goal_spend_q = db.query(
-        Transaction.currency_code,
-        func.coalesce(func.sum(Transaction.amount), 0).label("total"),
-    ).filter(
-        Transaction.type == "expense",
-        Transaction.goal_id.isnot(None),
-    )
-    saved_q = db.query(
-        GoalContribution.currency_code,
-        func.coalesce(func.sum(GoalContribution.amount), 0).label("total"),
-    )
     deposited_q = db.query(
         Deposit.currency_code,
         func.coalesce(func.sum(Deposit.principal_cents), 0).label("total"),
@@ -71,48 +60,32 @@ def _currency_net_overviews(
     if start is not None:
         income_q = income_q.filter(Transaction.date >= start)
         expense_q = expense_q.filter(Transaction.date >= start)
-        goal_spend_q = goal_spend_q.filter(Transaction.date >= start)
-        saved_q = saved_q.filter(GoalContribution.date >= start)
         deposited_q = deposited_q.filter(Deposit.start_date >= start)
     if end is not None:
         income_q = income_q.filter(Transaction.date <= end)
         expense_q = expense_q.filter(Transaction.date <= end)
-        goal_spend_q = goal_spend_q.filter(Transaction.date <= end)
-        saved_q = saved_q.filter(GoalContribution.date <= end)
         deposited_q = deposited_q.filter(Deposit.start_date <= end)
 
     income_rows = income_q.group_by(Transaction.currency_code).all()
     expense_rows = expense_q.group_by(Transaction.currency_code).all()
-    goal_spend_rows = goal_spend_q.group_by(Transaction.currency_code).all()
-    saved_rows = saved_q.group_by(GoalContribution.currency_code).all()
     deposited_rows = deposited_q.group_by(Deposit.currency_code).all()
 
     income_map = {r.currency_code: int(r.total) for r in income_rows}
     expense_map = {r.currency_code: int(r.total) for r in expense_rows}
-    goal_spend_map = {r.currency_code: int(r.total) for r in goal_spend_rows}
-    saved_map = {r.currency_code: int(r.total) for r in saved_rows}
     deposited_map = {r.currency_code: int(r.total) for r in deposited_rows}
-    codes = sorted(
-        set(income_map)
-        | set(expense_map)
-        | set(saved_map)
-        | set(deposited_map)
-        | set(goal_spend_map)
-    )
+    codes = sorted(set(income_map) | set(expense_map) | set(deposited_map))
 
     currencies = []
     for code in codes:
         income = income_map.get(code, 0)
         expense = expense_map.get(code, 0)
-        saved = saved_map.get(code, 0)
         deposited = deposited_map.get(code, 0)
-        goal_spend = goal_spend_map.get(code, 0)
         currencies.append(
             CurrencyOverview(
                 currency_code=code,
                 income_cents=income,
                 expense_cents=expense,
-                net_cents=income - expense - saved - deposited + goal_spend,
+                net_cents=income - expense - deposited,
             )
         )
     return currencies
@@ -184,15 +157,16 @@ def goals_progress(db: Session = Depends(get_db)):
     )
     result = []
     for goal in goals:
+        saved = goal_saved_cents(db, goal.id)
         pct = 0.0
         if goal.target_amount > 0:
-            pct = min(100.0, round(goal.current_amount / goal.target_amount * 100, 1))
+            pct = min(100.0, round(saved / goal.target_amount * 100, 1))
         result.append(
             GoalProgress(
                 id=goal.id,
                 name=goal.name,
                 target_amount=goal.target_amount,
-                current_amount=goal.current_amount,
+                current_amount=saved,
                 currency_code=goal.currency_code,
                 progress_pct=pct,
                 status=goal.status,

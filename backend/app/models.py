@@ -101,7 +101,7 @@ class Transaction(Base):
     recurring_rule: Mapped["RecurringRule | None"] = relationship(
         back_populates="transactions"
     )
-    goal: Mapped["Goal | None"] = relationship(back_populates="spend_transactions")
+    goal: Mapped["Goal | None"] = relationship(back_populates="transactions")
 
 
 class Budget(Base):
@@ -109,16 +109,14 @@ class Budget(Base):
     __table_args__ = (
         UniqueConstraint(
             "category_id",
-            "month",
             "currency_code",
-            name="uq_budget_category_month_currency",
+            name="uq_budget_category_currency",
         ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
     limit_cents: Mapped[int] = mapped_column(Integer, nullable=False)
-    month: Mapped[str] = mapped_column(String(7), nullable=False)  # YYYY-MM
     currency_code: Mapped[str] = mapped_column(
         String(3), ForeignKey("currencies.code"), nullable=False, default="USD"
     )
@@ -144,29 +142,9 @@ class Goal(Base):
         DateTime, nullable=False, default=datetime.utcnow
     )
 
-    contributions: Mapped[list["GoalContribution"]] = relationship(
-        back_populates="goal", cascade="all, delete-orphan"
-    )
-    spend_transactions: Mapped[list["Transaction"]] = relationship(
+    transactions: Mapped[list["Transaction"]] = relationship(
         back_populates="goal"
     )
-
-
-class GoalContribution(Base):
-    __tablename__ = "goal_contributions"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    goal_id: Mapped[int] = mapped_column(ForeignKey("goals.id"), nullable=False)
-    amount: Mapped[int] = mapped_column(Integer, nullable=False)  # cents
-    currency_code: Mapped[str] = mapped_column(
-        String(3), ForeignKey("currencies.code"), nullable=False, default="USD"
-    )
-    date: Mapped[date] = mapped_column(Date, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
-    )
-
-    goal: Mapped["Goal"] = relationship(back_populates="contributions")
 
 
 class Deposit(Base):
@@ -226,9 +204,6 @@ class Settings(Base):
     )
     theme: Mapped[str] = mapped_column(String(20), nullable=False, default="system")
     locale: Mapped[str] = mapped_column(String(20), nullable=False, default="")
-    first_day_of_week: Mapped[str] = mapped_column(
-        String(10), nullable=False, default="monday"
-    )
     dashboard_widgets: Mapped[str] = mapped_column(
         Text, nullable=False, default=DEFAULT_DASHBOARD_WIDGETS
     )

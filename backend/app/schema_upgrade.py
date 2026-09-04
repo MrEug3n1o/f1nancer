@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import inspect, text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
 from app.iso_currencies import currency_name
 from app.models import (
@@ -13,6 +13,139 @@ from app.models import (
     DEFAULT_DASHBOARD_WIDGET_VIEWS,
     DEFAULT_STATS_CHARTS,
 )
+
+GOALS_CATEGORY_NAME = "Goals"
+GOALS_CATEGORY_COLOR = "#5B8C5A"
+
+
+def migrate_goal_contributions_to_transactions(conn: Connection) -> None:
+    """Turn the parallel contribution ledger into tagged expense transactions."""
+    tables = set(inspect(conn).get_table_names())
+    if "goal_contributions" not in tables or "transactions" not in tables:
+        return
+    if "goals" not in tables or "categories" not in tables:
+        return
+
+    txn_cols = {c["name"] for c in inspect(conn).get_columns("transactions")}
+    if "goal_id" not in txn_cols:
+        conn.execute(text("ALTER TABLE transactions ADD COLUMN goal_id INTEGER"))
+
+    contrib_cols = {c["name"] for c in inspect(conn).get_columns("goal_contributions")}
+    if "currency_code" not in contrib_cols:
+        default_code = "USD"
+        settings_tables = set(inspect(conn).get_table_names())
+        if "settings" in settings_tables:
+            settings_cols = {c["name"] for c in inspect(conn).get_columns("settings")}
+            if "default_currency_code" in settings_cols:
+                row = conn.execute(
+                    text("SELECT default_currency_code FROM settings LIMIT 1")
+                ).fetchone()
+                if row and row[0]:
+                    default_code = str(row[0]).upper()
+        conn.execute(
+            text(
+                f"ALTER TABLE goal_contributions ADD COLUMN currency_code VARCHAR(3) DEFAULT '{default_code}'"
+            )
+        )
+        conn.execute(
+            text(
+                "UPDATE goal_contributions SET currency_code = :code WHERE currency_code IS NULL"
+            ),
+            {"code": default_code},
+        )
+
+    existing = conn.execute(
+        text(
+            "SELECT id FROM categories WHERE name = :name AND type = :type LIMIT 1"
+        ),
+        {"name": GOALS_CATEGORY_NAME, "type": "expense"},
+    ).fetchone()
+    if not existing:
+        conn.execute(
+            text(
+                "INSERT INTO categories (name, type, color) VALUES (:name, :type, :color)"
+            ),
+            {
+                "name": GOALS_CATEGORY_NAME,
+                "type": "expense",
+                "color": GOALS_CATEGORY_COLOR,
+            },
+        )
+
+    conn.execute(
+        text(
+            "DELETE FROM transactions "
+            "WHERE goal_id IS NOT NULL AND note LIKE 'Goal completed:%'"
+        )
+    )
+    conn.execute(
+        text(
+            """
+            INSERT INTO transactions (
+                amount, currency_code, date, type, category_id, note, goal_id, created_at
+            )
+            SELECT
+                gc.amount,
+                gc.currency_code,
+                gc.date,
+                'expense',
+                (
+                    SELECT id FROM categories
+                    WHERE name = :name AND type = 'expense'
+                    LIMIT 1
+                ),
+                'Saved toward ' || g.name,
+                gc.goal_id,
+                gc.created_at
+            FROM goal_contributions gc
+            JOIN goals g ON g.id = gc.goal_id
+            """
+        ),
+        {"name": GOALS_CATEGORY_NAME},
+    )
+    conn.execute(
+        text(
+            """
+            INSERT INTO transactions (
+                amount, currency_code, date, type, category_id, note, goal_id, created_at
+            )
+            SELECT
+                g.current_amount - COALESCE(s.total, 0),
+                g.currency_code,
+                COALESCE(date(g.created_at), date('now')),
+                'expense',
+                (
+                    SELECT id FROM categories
+                    WHERE name = :name AND type = 'expense'
+                    LIMIT 1
+                ),
+                'Saved toward ' || g.name,
+                g.id,
+                datetime('now')
+            FROM goals g
+            LEFT JOIN (
+                SELECT goal_id, SUM(amount) AS total
+                FROM transactions
+                WHERE type = 'expense' AND goal_id IS NOT NULL
+                GROUP BY goal_id
+            ) s ON s.goal_id = g.id
+            WHERE g.current_amount > COALESCE(s.total, 0)
+            """
+        ),
+        {"name": GOALS_CATEGORY_NAME},
+    )
+    conn.execute(
+        text(
+            """
+            UPDATE goals
+            SET current_amount = COALESCE((
+                SELECT SUM(t.amount) FROM transactions t
+                WHERE t.goal_id = goals.id AND t.type = 'expense'
+            ), 0)
+            """
+        )
+    )
+    conn.execute(text("DROP TABLE goal_contributions"))
 
 
 def ensure_schema(engine: Engine) -> None:
@@ -105,7 +238,6 @@ def ensure_schema(engine: Engine) -> None:
         extras = [
             ("theme", "VARCHAR(20)", "system"),
             ("locale", "VARCHAR(20)", ""),
-            ("first_day_of_week", "VARCHAR(10)", "monday"),
             ("dashboard_widgets", "TEXT", DEFAULT_DASHBOARD_WIDGETS.replace("'", "''")),
             ("stats_charts", "TEXT", DEFAULT_STATS_CHARTS.replace("'", "''")),
             (
@@ -188,6 +320,45 @@ def ensure_schema(engine: Engine) -> None:
                 conn.execute(text("DROP TABLE budgets"))
                 conn.execute(text("ALTER TABLE budgets_new RENAME TO budgets"))
 
+        # Collapse per-month budgets into standing monthly limits
+        if "budgets" in set(inspect(engine).get_table_names()):
+            budget_cols = {c["name"] for c in inspect(engine).get_columns("budgets")}
+            if "month" in budget_cols:
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE budgets_standing (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            category_id INTEGER NOT NULL,
+                            limit_cents INTEGER NOT NULL,
+                            currency_code VARCHAR(3) NOT NULL,
+                            FOREIGN KEY(category_id) REFERENCES categories (id),
+                            FOREIGN KEY(currency_code) REFERENCES currencies (code),
+                            UNIQUE (category_id, currency_code)
+                        )
+                        """
+                    )
+                )
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO budgets_standing (id, category_id, limit_cents, currency_code)
+                        SELECT b.id, b.category_id, b.limit_cents, b.currency_code
+                        FROM budgets b
+                        WHERE b.id = (
+                            SELECT b2.id
+                            FROM budgets b2
+                            WHERE b2.category_id = b.category_id
+                              AND b2.currency_code = b.currency_code
+                            ORDER BY b2.month DESC, b2.id DESC
+                            LIMIT 1
+                        )
+                        """
+                    )
+                )
+                conn.execute(text("DROP TABLE budgets"))
+                conn.execute(text("ALTER TABLE budgets_standing RENAME TO budgets"))
+
         tables_now = set(inspect(engine).get_table_names())
         if "deposits" not in tables_now and "currencies" in tables_now:
             conn.execute(
@@ -246,3 +417,5 @@ def ensure_schema(engine: Engine) -> None:
                         "UPDATE recurring_rules SET billing_day = 1 WHERE billing_day IS NULL"
                     )
                 )
+
+        migrate_goal_contributions_to_transactions(conn)

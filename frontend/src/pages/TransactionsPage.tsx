@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { api } from "../api";
-import { EmptyState, ErrorBanner, Money, SegmentedControl, Select } from "../components/ui";
+import { IconPencil, IconTrash } from "../components/NavIcons";
+import { EmptyState, ErrorBanner, IconButton, Money, SegmentedControl, Select } from "../components/ui";
 import { useApp } from "../context";
-import type { Category, CategoryType, Transaction } from "../types";
+import type { Category, CategoryType, Goal, Transaction } from "../types";
 import { centsToDollarsInput, dollarsToCents, todayISO } from "../utils";
 
 export function TransactionsPage() {
   const { month, defaultCurrency, currencies } = useApp();
   const [items, setItems] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [filterCategory, setFilterCategory] = useState("");
   const [filterCurrency, setFilterCurrency] = useState("");
   const [form, setForm] = useState({
@@ -18,6 +20,7 @@ export function TransactionsPage() {
     type: "expense" as CategoryType,
     category_id: "",
     note: "",
+    goal_id: "",
   });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +37,21 @@ export function TransactionsPage() {
     [categories, form.type],
   );
 
+  const goalOptions = useMemo(() => {
+    if (form.type !== "expense") return [];
+    return goals.filter(
+      (g) =>
+        String(g.id) === form.goal_id ||
+        (g.status === "active" && g.currency_code === form.currency_code),
+    );
+  }, [form.currency_code, form.goal_id, form.type, goals]);
+
+  const goalNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const g of goals) map.set(g.id, g.name);
+    return map;
+  }, [goals]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -41,12 +59,14 @@ export function TransactionsPage() {
       const params = new URLSearchParams({ month });
       if (filterCategory) params.set("category_id", filterCategory);
       if (filterCurrency) params.set("currency", filterCurrency);
-      const [txns, cats] = await Promise.all([
+      const [txns, cats, goalRows] = await Promise.all([
         api.get<Transaction[]>(`/transactions?${params}`),
         api.get<Category[]>("/categories"),
+        api.get<Goal[]>("/goals"),
       ]);
       setItems(txns);
       setCategories(cats);
+      setGoals(goalRows);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -67,6 +87,7 @@ export function TransactionsPage() {
       type: txn.type,
       category_id: String(txn.category_id),
       note: txn.note ?? "",
+      goal_id: txn.goal_id ? String(txn.goal_id) : "",
     });
   }
 
@@ -79,6 +100,7 @@ export function TransactionsPage() {
       type: "expense",
       category_id: "",
       note: "",
+      goal_id: "",
     });
   }
 
@@ -93,6 +115,8 @@ export function TransactionsPage() {
         type: form.type,
         category_id: Number(form.category_id),
         note: form.note.trim() || null,
+        goal_id:
+          form.type === "expense" && form.goal_id ? Number(form.goal_id) : null,
       };
       if (!payload.category_id) {
         throw new Error("Select a category");
@@ -136,6 +160,7 @@ export function TransactionsPage() {
                   ...f,
                   type,
                   category_id: "",
+                  goal_id: type === "expense" ? f.goal_id : "",
                 }))
               }
               options={[
@@ -161,9 +186,18 @@ export function TransactionsPage() {
             <Select
               required
               value={form.currency_code}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, currency_code: e.target.value }))
-              }
+              onChange={(e) => {
+                const next = e.target.value;
+                setForm((f) => {
+                  const selected = goals.find((g) => String(g.id) === f.goal_id);
+                  const keepGoal = selected && selected.currency_code === next;
+                  return {
+                    ...f,
+                    currency_code: next,
+                    goal_id: keepGoal ? f.goal_id : "",
+                  };
+                });
+              }}
             >
               {currencies.map((c) => (
                 <option key={c.code} value={c.code}>
@@ -194,6 +228,21 @@ export function TransactionsPage() {
               {filteredCategories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label>
+            Goal
+            <Select
+              value={form.goal_id}
+              disabled={form.type !== "expense"}
+              onChange={(e) => setForm((f) => ({ ...f, goal_id: e.target.value }))}
+            >
+              <option value="">None</option>
+              {goalOptions.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
                 </option>
               ))}
             </Select>
@@ -269,6 +318,7 @@ export function TransactionsPage() {
               <tr>
                 <th>Date</th>
                 <th>Category</th>
+                <th>Goal</th>
                 <th>Note</th>
                 <th className="num">Amount</th>
                 <th />
@@ -285,26 +335,25 @@ export function TransactionsPage() {
                     />
                     {txn.category?.name ?? "—"}
                   </td>
+                  <td className="muted">
+                    {txn.goal_id ? goalNameById.get(txn.goal_id) ?? "—" : "—"}
+                  </td>
                   <td className="muted">{txn.note ?? "—"}</td>
                   <td className={`num ${txn.type}`}>
                     {txn.type === "expense" ? "−" : "+"}
                     <Money cents={txn.amount} currency={txn.currency_code} />
                   </td>
                   <td className="actions">
-                    <button
-                      type="button"
-                      className="btn ghost small"
-                      onClick={() => startEdit(txn)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="btn ghost small danger-text"
+                    <IconButton label="Edit" edit onClick={() => startEdit(txn)}>
+                      <IconPencil className="btn-icon" />
+                    </IconButton>
+                    <IconButton
+                      label="Delete"
+                      danger
                       onClick={() => void onDelete(txn.id)}
                     >
-                      Delete
-                    </button>
+                      <IconTrash className="btn-icon" />
+                    </IconButton>
                   </td>
                 </tr>
               ))}

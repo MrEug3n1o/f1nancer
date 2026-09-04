@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { AppUpdatePanel } from "../components/AppUpdatePanel";
-import { ErrorBanner, SegmentedControl, Select } from "../components/ui";
+import { IconPencil, IconTrash } from "../components/NavIcons";
+import { ErrorBanner, IconButton, SegmentedControl, Select } from "../components/ui";
 import { useApp } from "../context";
 import { ISO_CURRENCY_CATALOG } from "../currencyCatalog";
 import type {
@@ -21,7 +22,6 @@ export function SettingsPage() {
   } = useApp();
 
   const [theme, setTheme] = useState<ThemeMode>("system");
-  const [firstDay, setFirstDay] = useState<"monday" | "sunday">("monday");
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
   const [addCode, setAddCode] = useState("");
   const [catalogFilter, setCatalogFilter] = useState("");
@@ -36,7 +36,6 @@ export function SettingsPage() {
   useEffect(() => {
     if (!settings) return;
     setTheme(settings.theme);
-    setFirstDay(settings.first_day_of_week);
     setDefaultCurrency(settings.default_currency_code);
   }, [settings]);
 
@@ -71,14 +70,27 @@ export function SettingsPage() {
       const updated = await api.patch<Settings>("/settings", {
         theme,
         locale: "en-US",
-        first_day_of_week: firstDay,
-        default_currency_code: defaultCurrency,
       });
       applyTheme(updated.theme);
       await refreshSettings();
       setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
+    }
+  }
+
+  async function changeDefaultCurrency(code: string) {
+    const previous = defaultCurrency;
+    setDefaultCurrency(code);
+    setError(null);
+    try {
+      await api.patch<Settings>("/settings", { default_currency_code: code });
+      await refreshSettings();
+    } catch (err) {
+      setDefaultCurrency(previous);
+      setError(
+        err instanceof Error ? err.message : "Could not update default currency",
+      );
     }
   }
 
@@ -168,6 +180,21 @@ export function SettingsPage() {
           Enable the currencies you use. Forms only offer this list. You can add
           any ISO currency and remove unused ones.
         </p>
+        <div className="form-grid">
+          <label>
+            Default currency
+            <Select
+              value={defaultCurrency}
+              onChange={(e) => void changeDefaultCurrency(e.target.value)}
+            >
+              {currencies.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
         <ul className="currency-list">
           {currencies.map((c) => (
             <li key={c.code} className="row-between">
@@ -177,19 +204,19 @@ export function SettingsPage() {
                   <span className="badge">default</span>
                 ) : null}
               </span>
-              <button
-                type="button"
-                className="btn ghost small danger-text"
+              <IconButton
+                label="Remove"
+                danger
                 disabled={currencies.length <= 1 || c.code === defaultCurrency}
                 onClick={() => void removeCurrency(c.code)}
                 title={
                   c.code === defaultCurrency
                     ? "Change default currency first"
-                    : undefined
+                    : "Remove"
                 }
               >
-                Remove
-              </button>
+                <IconTrash className="btn-icon" />
+              </IconButton>
             </li>
           ))}
         </ul>
@@ -229,19 +256,6 @@ export function SettingsPage() {
         <h2>Preferences</h2>
         <form className="form-grid" onSubmit={savePrefs}>
           <label>
-            Default currency
-            <Select
-              value={defaultCurrency}
-              onChange={(e) => setDefaultCurrency(e.target.value)}
-            >
-              {currencies.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
             Theme
             <SegmentedControl
               value={theme}
@@ -253,17 +267,6 @@ export function SettingsPage() {
                 { value: "system", label: "System" },
                 { value: "light", label: "Light" },
                 { value: "dark", label: "Dark" },
-              ]}
-            />
-          </label>
-          <label>
-            First day of week
-            <SegmentedControl
-              value={firstDay}
-              onChange={setFirstDay}
-              options={[
-                { value: "monday", label: "Monday" },
-                { value: "sunday", label: "Sunday" },
               ]}
             />
           </label>
@@ -336,20 +339,16 @@ export function SettingsPage() {
                 <span className="muted small">({c.type})</span>
               </span>
               <span className="actions">
-                <button
-                  type="button"
-                  className="btn ghost small"
-                  onClick={() => startEditCategory(c)}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  className="btn ghost small danger-text"
+                <IconButton label="Edit" edit onClick={() => startEditCategory(c)}>
+                  <IconPencil className="btn-icon" />
+                </IconButton>
+                <IconButton
+                  label="Delete"
+                  danger
                   onClick={() => void deleteCategory(c.id)}
                 >
-                  Delete
-                </button>
+                  <IconTrash className="btn-icon" />
+                </IconButton>
               </span>
             </li>
           ))}

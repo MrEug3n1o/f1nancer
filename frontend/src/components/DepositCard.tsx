@@ -1,4 +1,5 @@
-import { Money } from "./ui";
+import { IconTrash } from "./NavIcons";
+import { IconButton, Money } from "./ui";
 import { useApp } from "../context";
 import type { Deposit } from "../types";
 
@@ -137,13 +138,9 @@ export function DepositCard({
           <span className={`badge ${d.status}`}>{statusLabel(d.status)}</span>
         </div>
         {onDelete ? (
-          <button
-            type="button"
-            className="btn ghost small danger-text"
-            onClick={() => onDelete(d.id)}
-          >
-            Delete
-          </button>
+          <IconButton label="Delete" danger onClick={() => onDelete(d.id)}>
+            <IconTrash className="btn-icon" />
+          </IconButton>
         ) : null}
       </div>
 

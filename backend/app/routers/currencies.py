@@ -10,7 +10,6 @@ from app.models import (
     Currency,
     Deposit,
     Goal,
-    GoalContribution,
     RecurringRule,
     Settings,
     Transaction,
@@ -77,11 +76,6 @@ def delete_currency(code: str, db: Session = Depends(get_db)):
     goal_count = (
         db.query(func.count(Goal.id)).filter(Goal.currency_code == normalized).scalar()
     )
-    contrib_count = (
-        db.query(func.count(GoalContribution.id))
-        .filter(GoalContribution.currency_code == normalized)
-        .scalar()
-    )
     deposit_count = (
         db.query(func.count(Deposit.id))
         .filter(Deposit.currency_code == normalized)
@@ -95,7 +89,6 @@ def delete_currency(code: str, db: Session = Depends(get_db)):
             rule_count,
             budget_count,
             goal_count,
-            contrib_count,
             deposit_count,
         )
     ):
@@ -105,7 +98,7 @@ def delete_currency(code: str, db: Session = Depends(get_db)):
                 f"Currency {normalized} is in use "
                 f"({txn_count} transactions, {rule_count} subscriptions, "
                 f"{budget_count} budgets, {goal_count} goals, "
-                f"{contrib_count} contributions, {deposit_count} deposits). "
+                f"{deposit_count} deposits). "
                 "Remove those first."
             ),
         )

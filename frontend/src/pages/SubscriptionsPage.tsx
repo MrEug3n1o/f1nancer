@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { api } from "../api";
-import { EmptyState, ErrorBanner, Money, SegmentedControl, Select } from "../components/ui";
+import { IconTrash } from "../components/NavIcons";
+import { EmptyState, ErrorBanner, IconButton, Money, SegmentedControl, Select } from "../components/ui";
 import { useApp } from "../context";
 import type { Cadence, Category, CategoryType, RecurringRule } from "../types";
 import { dollarsToCents, todayISO } from "../utils";
@@ -232,13 +233,13 @@ export function SubscriptionsPage() {
                     >
                       {r.active ? "Pause" : "Resume"}
                     </button>
-                    <button
-                      type="button"
-                      className="btn ghost small danger-text"
+                    <IconButton
+                      label="Delete"
+                      danger
                       onClick={() => void onDelete(r.id)}
                     >
-                      Delete
-                    </button>
+                      <IconTrash className="btn-icon" />
+                    </IconButton>
                   </td>
                 </tr>
               ))}

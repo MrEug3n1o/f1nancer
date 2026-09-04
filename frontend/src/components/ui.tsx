@@ -1,4 +1,4 @@
-import type { ReactNode, SelectHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
 import { useApp } from "../context";
 import { formatMoney } from "../utils";
 
@@ -80,6 +80,43 @@ export function Money({
   const { locale } = useApp();
   return (
     <span className="money">{formatMoney(cents, currency, locale || undefined)}</span>
+  );
+}
+
+export function IconButton({
+  label,
+  danger = false,
+  edit = false,
+  className,
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  label: string;
+  danger?: boolean;
+  edit?: boolean;
+}) {
+  const classes = [
+    "btn",
+    "ghost",
+    "small",
+    "icon",
+    danger && "danger-text",
+    edit && "edit",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <button
+      className={classes}
+      aria-label={label}
+      title={label}
+      {...props}
+      type="button"
+    >
+      {children}
+    </button>
   );
 }
 

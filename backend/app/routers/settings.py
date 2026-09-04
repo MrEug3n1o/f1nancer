@@ -165,7 +165,6 @@ def _to_out(settings: Settings) -> SettingsOut:
         default_currency_code=settings.default_currency_code,
         theme=settings.theme or "system",
         locale=settings.locale or "",
-        first_day_of_week=settings.first_day_of_week or "monday",
         dashboard_widgets=merged_widgets,
         stats_charts=charts,
         dashboard_widget_views=_parse_widget_views(settings.dashboard_widget_views),
@@ -196,8 +195,6 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
         settings.theme = data["theme"]
     if "locale" in data:
         settings.locale = data["locale"] or ""
-    if "first_day_of_week" in data and data["first_day_of_week"] is not None:
-        settings.first_day_of_week = data["first_day_of_week"]
     if "dashboard_widgets" in data and data["dashboard_widgets"] is not None:
         widgets = [w for w in data["dashboard_widgets"] if w in VALID_DASHBOARD]
         settings.dashboard_widgets = json.dumps(widgets)

@@ -55,6 +55,7 @@ class TransactionCreate(BaseModel):
     type: Literal["income", "expense"]
     category_id: int
     note: str | None = None
+    goal_id: int | None = None
 
     @field_validator("currency_code")
     @classmethod
@@ -69,6 +70,7 @@ class TransactionUpdate(BaseModel):
     type: Literal["income", "expense"] | None = None
     category_id: int | None = None
     note: str | None = None
+    goal_id: int | None = None
 
     @field_validator("currency_code")
     @classmethod
@@ -95,7 +97,6 @@ class TransactionOut(BaseModel):
 class BudgetCreate(BaseModel):
     category_id: int
     limit_cents: int = Field(gt=0)
-    month: str = Field(pattern=r"^\d{4}-\d{2}$")
     currency_code: str = Field(min_length=3, max_length=3)
 
     @field_validator("currency_code")
@@ -105,8 +106,8 @@ class BudgetCreate(BaseModel):
 
 
 class BudgetUpdate(BaseModel):
+    category_id: int | None = None
     limit_cents: int | None = Field(default=None, gt=0)
-    month: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
     currency_code: str | None = Field(default=None, min_length=3, max_length=3)
 
     @field_validator("currency_code")
@@ -155,6 +156,9 @@ class GoalUpdate(BaseModel):
 
 class GoalContribute(BaseModel):
     amount: int = Field(gt=0, description="Contribution in cents")
+    date: Date | None = None
+    category_id: int | None = None
+    note: str | None = None
 
 
 class GoalComplete(BaseModel):
@@ -173,6 +177,7 @@ class GoalOut(BaseModel):
     status: str
     created_at: datetime
     progress_pct: float = 0.0
+    transactions: list[TransactionOut] = Field(default_factory=list)
 
 
 class DepositCreate(BaseModel):
@@ -296,7 +301,6 @@ class SettingsOut(BaseModel):
     default_currency_code: str
     theme: str
     locale: str
-    first_day_of_week: str
     dashboard_widgets: list[str]
     stats_charts: list[str]
     dashboard_widget_views: dict[str, str]
@@ -306,7 +310,6 @@ class SettingsUpdate(BaseModel):
     default_currency_code: str | None = Field(default=None, min_length=3, max_length=3)
     theme: Literal["light", "dark", "system"] | None = None
     locale: str | None = Field(default=None, max_length=20)
-    first_day_of_week: Literal["monday", "sunday"] | None = None
     dashboard_widgets: list[str] | None = None
     stats_charts: list[str] | None = None
     dashboard_widget_views: dict[str, str] | None = None

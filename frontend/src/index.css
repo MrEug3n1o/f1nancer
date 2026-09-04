@@ -101,6 +101,11 @@ code {
   display: grid;
   grid-template-columns: 220px 1fr;
   min-height: 100vh;
+  transition: grid-template-columns 0.2s ease;
+}
+
+.shell.sidebar-collapsed {
+  grid-template-columns: 72px 1fr;
 }
 
 .sidebar {
@@ -108,6 +113,7 @@ code {
   top: 0;
   align-self: start;
   height: 100vh;
+  overflow-x: hidden;
   overflow-y: auto;
   background: var(--sidebar);
   color: var(--sidebar-text);
@@ -118,11 +124,26 @@ code {
   z-index: 10;
 }
 
+.sidebar.collapsed {
+  padding: 1.5rem 0.65rem;
+  align-items: center;
+}
+
 .brand {
   display: flex;
   align-items: center;
   gap: 0.7rem;
   padding: 0 0.35rem;
+}
+
+.sidebar.collapsed .brand {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar.collapsed .brand-name,
+.sidebar.collapsed .nav-link-label {
+  display: none;
 }
 
 .brand-mark {
@@ -151,10 +172,24 @@ code {
 }
 
 .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
   padding: 0.65rem 0.85rem;
   border-radius: 10px;
   color: rgba(232, 239, 233, 0.78);
   transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-link-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed .nav-link {
+  justify-content: center;
+  padding: 0.65rem;
 }
 
 .nav-link:hover {
@@ -165,6 +200,38 @@ code {
 .nav-link.active {
   background: rgba(47, 107, 79, 0.85);
   color: white;
+}
+
+.sidebar-toggle {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  font: inherit;
+  border: none;
+  background: transparent;
+  color: rgba(232, 239, 233, 0.78);
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+  justify-content: center;
+  padding: 0.65rem;
+}
+
+.sidebar-toggle-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
 }
 
 .main {
@@ -396,6 +463,10 @@ code {
 .section h2 {
   margin: 0;
   font-size: 1.2rem;
+}
+
+.section h2 + .muted {
+  margin: 0.4rem 0 1rem;
 }
 
 .widget-header {
@@ -941,6 +1012,49 @@ textarea:focus {
   font-size: 0.85rem;
 }
 
+.btn.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.32rem;
+  min-width: 2rem;
+  min-height: 2rem;
+}
+
+[data-theme="dark"] .btn.ghost.icon.edit {
+  background: #d4a04c;
+  border-color: #d4a04c;
+  color: #141414;
+}
+
+[data-theme="dark"] .btn.ghost.icon.edit:hover {
+  background: #ddab58;
+  border-color: #ddab58;
+}
+
+[data-theme="dark"] .btn.ghost.icon.danger-text {
+  background: #c95c5c;
+  border-color: #c95c5c;
+  color: #141414 !important;
+}
+
+[data-theme="dark"] .btn.ghost.icon.danger-text:hover {
+  background: #d46a6a;
+  border-color: #d46a6a;
+}
+
+.btn-icon {
+  display: block;
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -981,6 +1095,7 @@ textarea:focus {
 .table .actions {
   text-align: right;
   white-space: nowrap;
+  justify-content: flex-end;
 }
 
 .table tr.dim {
@@ -1090,6 +1205,24 @@ textarea:focus {
 
 .contribute-row input {
   max-width: 140px;
+}
+
+.goal-txn-form {
+  margin-top: 0.85rem;
+}
+
+.goal-txn-empty {
+  margin: 0.75rem 0 0;
+}
+
+.table.compact th,
+.table.compact td {
+  padding: 0.45rem 0.3rem;
+  font-size: 0.9rem;
+}
+
+.table.compact {
+  margin-top: 0.85rem;
 }
 
 .empty {
@@ -1263,6 +1396,10 @@ textarea:focus {
   gap: 0.55rem;
 }
 
+.form-grid + .currency-list {
+  margin-top: 1rem;
+}
+
 .currency-list li,
 .category-manage-list li {
   padding: 0.55rem 0;
@@ -1274,11 +1411,13 @@ textarea:focus {
 }
 
 @media (max-width: 900px) {
-  .shell {
+  .shell,
+  .shell.sidebar-collapsed {
     grid-template-columns: 1fr;
   }
 
-  .sidebar {
+  .sidebar,
+  .sidebar.collapsed {
     height: auto;
     flex-direction: row;
     align-items: center;
@@ -1287,6 +1426,25 @@ textarea:focus {
     padding: 1rem;
     overflow-x: auto;
     overflow-y: visible;
+  }
+
+  .sidebar.collapsed .brand {
+    justify-content: flex-start;
+    padding: 0 0.35rem;
+  }
+
+  .sidebar.collapsed .brand-name,
+  .sidebar.collapsed .nav-link-label {
+    display: revert;
+  }
+
+  .sidebar.collapsed .nav-link {
+    justify-content: flex-start;
+    padding: 0.65rem 0.85rem;
+  }
+
+  .sidebar-toggle {
+    display: none;
   }
 
   .nav {

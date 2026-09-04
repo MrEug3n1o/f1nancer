@@ -271,7 +271,7 @@ export function DashboardPage() {
             {budgets.length === 0 ? (
               <EmptyState
                 title="No budgets set"
-                hint="Create monthly limits on the Budgets page."
+                hint="Set a standing monthly limit on the Budgets page."
               />
             ) : (
               <BudgetsView

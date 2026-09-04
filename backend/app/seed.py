@@ -10,10 +10,11 @@ from app.models import (
     DEFAULT_DASHBOARD_WIDGET_VIEWS,
     DEFAULT_STATS_CHARTS,
     Category,
+    CategoryType,
     Currency,
     Goal,
-    GoalContribution,
     Settings,
+    Transaction,
 )
 
 DEFAULT_CATEGORIES = [
@@ -35,24 +36,39 @@ DEFAULT_CATEGORIES = [
 ]
 
 
-def _backfill_goal_contributions(db: Session) -> None:
-    """Ensure existing goal balances are reflected in contribution history."""
+def _backfill_goal_saved_transactions(db: Session) -> None:
+    """Ensure existing goal balances are reflected as tagged expenses."""
     goals = db.query(Goal).all()
+    if not goals:
+        return
+    category = (
+        db.query(Category)
+        .filter(Category.name == "Goals", Category.type == CategoryType.expense.value)
+        .first()
+    )
+    if category is None:
+        return
     for goal in goals:
         recorded = (
-            db.query(func.coalesce(func.sum(GoalContribution.amount), 0))
-            .filter(GoalContribution.goal_id == goal.id)
+            db.query(func.coalesce(func.sum(Transaction.amount), 0))
+            .filter(
+                Transaction.goal_id == goal.id,
+                Transaction.type == CategoryType.expense.value,
+            )
             .scalar()
         )
-        gap = goal.current_amount - int(recorded)
+        gap = goal.current_amount - int(recorded or 0)
         if gap > 0:
             contrib_date = goal.created_at.date() if goal.created_at else date.today()
             db.add(
-                GoalContribution(
-                    goal_id=goal.id,
+                Transaction(
                     amount=gap,
-                    currency_code=getattr(goal, "currency_code", None) or "USD",
+                    currency_code=goal.currency_code or "USD",
                     date=contrib_date,
+                    type=CategoryType.expense.value,
+                    category_id=category.id,
+                    note=f"Saved toward {goal.name}",
+                    goal_id=goal.id,
                 )
             )
 
@@ -74,7 +90,6 @@ def seed_database(db: Session) -> None:
                 default_currency_code=default_code,
                 theme="system",
                 locale="",
-                first_day_of_week="monday",
                 dashboard_widgets=DEFAULT_DASHBOARD_WIDGETS,
                 stats_charts=DEFAULT_STATS_CHARTS,
                 dashboard_widget_views=DEFAULT_DASHBOARD_WIDGET_VIEWS,
@@ -85,8 +100,6 @@ def seed_database(db: Session) -> None:
             settings.theme = "system"
         if settings.locale is None:
             settings.locale = ""
-        if not settings.first_day_of_week:
-            settings.first_day_of_week = "monday"
         if not settings.dashboard_widgets:
             settings.dashboard_widgets = DEFAULT_DASHBOARD_WIDGETS
         if not settings.stats_charts:
@@ -114,7 +127,8 @@ def seed_database(db: Session) -> None:
             if exists is None:
                 db.add(Category(name=name, type=cat_type, color=color))
 
-    _backfill_goal_contributions(db)
+    db.flush()
+    _backfill_goal_saved_transactions(db)
     db.commit()
 
 

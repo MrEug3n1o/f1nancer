@@ -31,7 +31,6 @@ const fallbackSettings: Settings = {
   default_currency_code: "USD",
   theme: "system",
   locale: "en-US",
-  first_day_of_week: "monday",
   dashboard_widgets: ["pocket", "overview", "spend_by_category", "budgets", "goals", "deposits"],
   dashboard_widget_views: {},
 };

@@ -57,6 +57,7 @@ export interface Goal {
   status: GoalStatus;
   created_at: string;
   progress_pct: number;
+  transactions?: Transaction[];
 }
 
 export interface Deposit {
@@ -106,7 +107,6 @@ export interface Settings {
   default_currency_code: string;
   theme: ThemeMode;
   locale: string;
-  first_day_of_week: "monday" | "sunday";
   dashboard_widgets: string[];
   dashboard_widget_views: Record<string, string>;
 }
