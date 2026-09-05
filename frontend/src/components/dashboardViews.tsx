@@ -16,6 +16,7 @@ import { Money, ProgressBar } from "./ui";
 import type {
   Budget,
   CategorySpend,
+  CreditDebt,
   CurrencyOverview,
   Deposit,
   GoalProgress,
@@ -821,6 +822,143 @@ export function DepositsView({
             />
             <div className="goal-pie-meta">
               <strong>{d.name}</strong>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function CreditsDebtsView({
+  view,
+  items,
+  resolvedTheme,
+}: {
+  view: string;
+  items: CreditDebt[];
+  resolvedTheme: "light" | "dark";
+}) {
+  const rows: ChartRow[] = items.map((item, i) => ({
+    name: item.name,
+    value: item.remaining_cents,
+    color: chartFill(
+      item.direction === "credit"
+        ? "#2f6b4f"
+        : item.direction === "debt"
+          ? "#a65d57"
+          : GOAL_COLORS[i % GOAL_COLORS.length],
+      resolvedTheme,
+    ),
+    currency_code: item.currency_code,
+    pct: item.progress_pct,
+  }));
+
+  if (view === "bars") {
+    return (
+      <ul className="progress-list">
+        {items.map((item) => {
+          const color = chartFill(
+            item.direction === "credit" ? "#2f6b4f" : "#a65d57",
+            resolvedTheme,
+          );
+          return (
+            <li key={item.id}>
+              <div className="row-between">
+                <span>{item.name}</span>
+                <span className="muted">{Math.round(item.progress_pct)}%</span>
+              </div>
+              <ProgressBar
+                value={item.paid_cents}
+                max={item.principal_cents + item.accrued_interest_cents}
+                color={color}
+              />
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
+  if (view === "list") {
+    return (
+      <ul className="deposit-list">
+        {items.map((item) => (
+          <li key={item.id} className="deposit-list-item">
+            <div className="row-between">
+              <strong>{item.name}</strong>
+              <span className="muted">
+                {item.direction === "credit" ? "Owed to you" : "You owe"}
+              </span>
+            </div>
+            <span className="muted small">
+              <Money cents={item.remaining_cents} currency={item.currency_code} />
+              {" remaining · "}
+              {Math.round(item.progress_pct)}% paid
+            </span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (view === "bar_chart") {
+    return (
+      <HorizontalBarChart
+        data={rows}
+        currency={rows[0]?.currency_code ?? "USD"}
+      />
+    );
+  }
+
+  if (view === "bar_vertical") {
+    return (
+      <VerticalBarChart
+        data={rows}
+        currency={rows[0]?.currency_code ?? "USD"}
+      />
+    );
+  }
+
+  if (view === "pie" || view === "donut") {
+    return (
+      <>
+        <ColoredPie
+          data={rows}
+          innerRadius={view === "donut" ? 52 : 0}
+        />
+        <ChartLegend items={rows} />
+      </>
+    );
+  }
+
+  if (view === "radial") {
+    return (
+      <RadialChart
+        data={rows.map((r) => ({
+          ...r,
+          value: (r as ChartRow & { pct?: number }).pct ?? r.value,
+        }))}
+      />
+    );
+  }
+
+  if (view === "treemap") {
+    return <ColoredTreemap data={rows} />;
+  }
+
+  return (
+    <div className="goal-pies">
+      {items.map((item) => {
+        const color = item.direction === "credit" ? "#2f6b4f" : "#a65d57";
+        return (
+          <div key={item.id} className="goal-pie">
+            <GoalProgressRing percent={item.progress_pct} color={color} />
+            <div className="goal-pie-meta">
+              <strong>{item.name}</strong>
+              <span className="muted">
+                <Money cents={item.remaining_cents} currency={item.currency_code} /> remaining
+              </span>
             </div>
           </div>
         );

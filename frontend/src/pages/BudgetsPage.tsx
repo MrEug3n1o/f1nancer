@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { IconPencil, IconTrash } from "../components/NavIcons";
-import { EmptyState, ErrorBanner, IconButton, Money, ProgressBar, Select } from "../components/ui";
+import { PillSelect } from "../components/PillSelect";
+import { EmptyState, ErrorBanner, IconButton, Money, ProgressBar } from "../components/ui";
 import { useApp } from "../context";
 import type { Budget, Category } from "../types";
 import { centsToDollarsInput, dollarsToCents, formatMonthLabel } from "../utils";
@@ -62,6 +64,9 @@ export function BudgetsPage() {
     e.preventDefault();
     setError(null);
     try {
+      if (!categoryId) {
+        throw new Error("Select a category");
+      }
       const payload = {
         category_id: Number(categoryId),
         limit_cents: dollarsToCents(limit),
@@ -102,73 +107,100 @@ export function BudgetsPage() {
     (c) => !usedKeys.has(`${c.id}:${currencyCode}`),
   );
 
+  function changeCurrency(next: string) {
+    setCurrencyCode(next);
+    setCategoryId((current) => {
+      if (!current) return current;
+      const taken = budgets.some(
+        (b) =>
+          b.id !== editingId &&
+          String(b.category_id) === current &&
+          b.currency_code === next,
+      );
+      return taken ? "" : current;
+    });
+  }
+
   return (
     <div className="stack">
       <ErrorBanner message={error} />
-      <section className="section">
-        <h2>{editingId ? "Edit monthly limit" : "Set monthly limit"}</h2>
-        <p className="muted">
-          Limits repeat every month, like a subscription, until you edit or delete them.
-        </p>
-        <form className="form-grid" onSubmit={onSubmit}>
-          <label>
-            Category
-            <Select
-              required
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-            >
-              <option value="">Select…</option>
-              {available.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            Currency
-            <Select
-              required
+      <section className={`section txn-composer${editingId ? " is-editing" : ""}`}>
+        <div className="txn-composer-head">
+          <div>
+            <h2>{editingId ? "Edit monthly limit" : "Set monthly limit"}</h2>
+            <p className="muted">
+              Limits repeat every month, like a subscription, until you edit or delete them.
+            </p>
+          </div>
+        </div>
+        <form className="txn-form" onSubmit={onSubmit}>
+          <div className="txn-amount-block">
+            <div className="txn-amount-row">
+              <input
+                className="txn-amount-input"
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
+                required
+                aria-label="Limit"
+                value={limit}
+                onChange={(e) => setLimit(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <PillSelect
+              className="txn-currency-select"
+              ariaLabel="Currency"
               value={currencyCode}
-              onChange={(e) => {
-                const next = e.target.value;
-                setCurrencyCode(next);
-                setCategoryId((current) => {
-                  if (!current) return current;
-                  const taken = budgets.some(
-                    (b) =>
-                      b.id !== editingId &&
-                      String(b.category_id) === current &&
-                      b.currency_code === next,
-                  );
-                  return taken ? "" : current;
-                });
-              }}
-            >
-              {currencies.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            Limit
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              required
-              value={limit}
-              onChange={(e) => setLimit(e.target.value)}
-              placeholder="0.00"
+              onChange={changeCurrency}
+              options={currencies.map((c) => ({
+                value: c.code,
+                label: c.code,
+              }))}
             />
-          </label>
-          <div className="form-actions">
+          </div>
+
+          <fieldset className="txn-fieldset">
+            <legend>Category</legend>
+            {available.length === 0 ? (
+              <p className="muted small txn-empty-hint">
+                {categories.length === 0 ? (
+                  <>
+                    No expense categories yet.{" "}
+                    <Link to="/settings">Add them in Settings</Link>.
+                  </>
+                ) : (
+                  "Every category already has a limit in this currency."
+                )}
+              </p>
+            ) : (
+              <div className="txn-chips" role="radiogroup" aria-label="Category">
+                {available.map((c) => {
+                  const selected = categoryId === String(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      className={`txn-chip${selected ? " selected" : ""}`}
+                      style={{ "--chip-color": c.color } as CSSProperties}
+                      onClick={() => setCategoryId(String(c.id))}
+                    >
+                      <span className="swatch" style={{ background: c.color }} />
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </fieldset>
+
+          <div className="form-actions txn-actions">
             <button
               type="submit"
-              className="btn primary"
+              className="btn primary txn-submit"
               disabled={!available.length}
             >
               {editingId ? "Update budget" : "Add budget"}

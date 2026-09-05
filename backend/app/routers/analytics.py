@@ -6,11 +6,14 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.credit_debt_utils import remaining_cents
 from app.database import get_db
 from app.deposit_utils import simple_interest_cents
 from app.goal_utils import goal_saved_cents
 from app.models import (
     Category,
+    CreditDebt,
+    CreditDebtStatus,
     Deposit,
     DepositStatus,
     DepositType,
@@ -20,6 +23,7 @@ from app.models import (
 )
 from app.schemas import (
     CategorySpend,
+    CreditDebtSummaryItem,
     CurrencyMonthSplit,
     CurrencyOverview,
     DepositSummaryItem,
@@ -215,6 +219,43 @@ def deposits_summary(db: Session = Depends(get_db)):
             active_count=vals["active_count"],
             principal_cents=vals["principal_cents"],
             current_value_cents=vals["current_value_cents"],
+        )
+        for code, vals in sorted(bucket.items())
+    ]
+
+
+@router.get("/credits-debts-summary", response_model=list[CreditDebtSummaryItem])
+def credits_debts_summary(db: Session = Depends(get_db)):
+    items = (
+        db.query(CreditDebt)
+        .filter(CreditDebt.status == CreditDebtStatus.active.value)
+        .order_by(CreditDebt.currency_code)
+        .all()
+    )
+    bucket: dict[str, dict[str, int]] = {}
+    for item in items:
+        if item.currency_code not in bucket:
+            bucket[item.currency_code] = {
+                "credit_count": 0,
+                "debt_count": 0,
+                "credit_remaining_cents": 0,
+                "debt_remaining_cents": 0,
+            }
+        remaining = remaining_cents(db, item)
+        if item.direction == "credit":
+            bucket[item.currency_code]["credit_count"] += 1
+            bucket[item.currency_code]["credit_remaining_cents"] += remaining
+        else:
+            bucket[item.currency_code]["debt_count"] += 1
+            bucket[item.currency_code]["debt_remaining_cents"] += remaining
+
+    return [
+        CreditDebtSummaryItem(
+            currency_code=code,
+            credit_count=vals["credit_count"],
+            debt_count=vals["debt_count"],
+            credit_remaining_cents=vals["credit_remaining_cents"],
+            debt_remaining_cents=vals["debt_remaining_cents"],
         )
         for code, vals in sorted(bucket.items())
     ]

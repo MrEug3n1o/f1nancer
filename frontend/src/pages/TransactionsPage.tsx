@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
+import { DatePicker } from "../components/DatePicker";
 import { IconPencil, IconTrash } from "../components/NavIcons";
-import { EmptyState, ErrorBanner, IconButton, Money, SegmentedControl, Select } from "../components/ui";
+import { PillSelect } from "../components/PillSelect";
+import { EmptyState, ErrorBanner, IconButton, Money, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
 import type { Category, CategoryType, Goal, Transaction } from "../types";
-import { centsToDollarsInput, dollarsToCents, todayISO } from "../utils";
+import { centsToDollarsInput, dollarsToCents, shiftDateISO, todayISO } from "../utils";
 
 export function TransactionsPage() {
   const { month, defaultCurrency, currencies } = useApp();
@@ -25,6 +28,10 @@ export function TransactionsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const amountRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLElement>(null);
+  const today = todayISO();
+  const yesterday = shiftDateISO(today, -1);
 
   useEffect(() => {
     if (!editingId) {
@@ -78,6 +85,10 @@ export function TransactionsPage() {
     void load();
   }, [load]);
 
+  function focusAmount() {
+    requestAnimationFrame(() => amountRef.current?.focus());
+  }
+
   function startEdit(txn: Transaction) {
     setEditingId(txn.id);
     setForm({
@@ -89,6 +100,8 @@ export function TransactionsPage() {
       note: txn.note ?? "",
       goal_id: txn.goal_id ? String(txn.goal_id) : "",
     });
+    focusAmount();
+    composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function resetForm() {
@@ -102,6 +115,7 @@ export function TransactionsPage() {
       note: "",
       goal_id: "",
     });
+    focusAmount();
   }
 
   async function onSubmit(e: FormEvent) {
@@ -148,46 +162,57 @@ export function TransactionsPage() {
   return (
     <div className="stack">
       <ErrorBanner message={error} />
-      <section className="section">
-        <h2>{editingId ? "Edit transaction" : "Add transaction"}</h2>
-        <form className="form-grid" onSubmit={onSubmit}>
-          <label>
-            Type
-            <SegmentedControl
-              value={form.type}
-              onChange={(type) =>
-                setForm((f) => ({
-                  ...f,
-                  type,
-                  category_id: "",
-                  goal_id: type === "expense" ? f.goal_id : "",
-                }))
-              }
-              options={[
-                { value: "expense", label: "Expense" },
-                { value: "income", label: "Income" },
-              ]}
-            />
-          </label>
-          <label>
-            Amount
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              required
-              value={form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-              placeholder="0.00"
-            />
-          </label>
-          <label>
-            Currency
-            <Select
-              required
+      <section
+        ref={composerRef}
+        className={`section txn-composer txn-${form.type}${editingId ? " is-editing" : ""}`}
+      >
+        <div className="txn-composer-head">
+          <h2>{editingId ? "Edit transaction" : "Add transaction"}</h2>
+          <SegmentedControl
+            ariaLabel="Transaction type"
+            value={form.type}
+            onChange={(type) =>
+              setForm((f) => ({
+                ...f,
+                type,
+                category_id: "",
+                goal_id: type === "expense" ? f.goal_id : "",
+              }))
+            }
+            options={[
+              { value: "expense", label: "Expense" },
+              { value: "income", label: "Income" },
+            ]}
+          />
+        </div>
+
+        <form className="txn-form" onSubmit={onSubmit}>
+          <div className="txn-amount-block">
+            <div className="txn-amount-row">
+              <span className="txn-amount-sign" aria-hidden>
+                {form.type === "expense" ? "−" : "+"}
+              </span>
+              <input
+                id="txn-amount"
+                ref={amountRef}
+                className="txn-amount-input"
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
+                required
+                autoFocus
+                aria-label="Amount"
+                value={form.amount}
+                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                placeholder="0.00"
+              />
+            </div>
+            <PillSelect
+              className="txn-currency-select"
+              ariaLabel="Currency"
               value={form.currency_code}
-              onChange={(e) => {
-                const next = e.target.value;
+              onChange={(next) => {
                 setForm((f) => {
                   const selected = goals.find((g) => String(g.id) === f.goal_id);
                   const keepGoal = selected && selected.currency_code === next;
@@ -198,67 +223,116 @@ export function TransactionsPage() {
                   };
                 });
               }}
-            >
-              {currencies.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            Date
-            <input
-              type="date"
-              required
-              value={form.date}
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              options={currencies.map((c) => ({
+                value: c.code,
+                label: c.code,
+              }))}
             />
-          </label>
-          <label>
-            Category
-            <Select
-              required
-              value={form.category_id}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, category_id: e.target.value }))
-              }
-            >
-              <option value="">Select…</option>
-              {filteredCategories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            Goal
-            <Select
-              value={form.goal_id}
-              disabled={form.type !== "expense"}
-              onChange={(e) => setForm((f) => ({ ...f, goal_id: e.target.value }))}
-            >
-              <option value="">None</option>
-              {goalOptions.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className="span-2">
-            Note
+          </div>
+
+          <fieldset className="txn-fieldset">
+            <legend>Category</legend>
+            {filteredCategories.length === 0 ? (
+              <p className="muted small txn-empty-hint">
+                No {form.type} categories yet.{" "}
+                <Link to="/settings">Add them in Settings</Link>.
+              </p>
+            ) : (
+              <div className="txn-chips" role="radiogroup" aria-label="Category">
+                {filteredCategories.map((c) => {
+                  const selected = form.category_id === String(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      className={`txn-chip${selected ? " selected" : ""}`}
+                      style={{ "--chip-color": c.color } as CSSProperties}
+                      onClick={() =>
+                        setForm((f) => ({ ...f, category_id: String(c.id) }))
+                      }
+                    >
+                      <span className="swatch" style={{ background: c.color }} />
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </fieldset>
+
+          <div className="txn-meta-row">
+            <div className="txn-date-field">
+              <label htmlFor="txn-date">Date</label>
+              <div className="txn-date-row">
+                <DatePicker
+                  id="txn-date"
+                  value={form.date}
+                  onChange={(date) => setForm((f) => ({ ...f, date }))}
+                />
+                <div className="txn-date-chips">
+                  <button
+                    type="button"
+                    className={`txn-chip${form.date === today ? " selected" : ""}`}
+                    style={{ "--chip-color": "var(--accent)" } as CSSProperties}
+                    onClick={() => setForm((f) => ({ ...f, date: today }))}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    className={`txn-chip${form.date === yesterday ? " selected" : ""}`}
+                    style={{ "--chip-color": "var(--accent)" } as CSSProperties}
+                    onClick={() => setForm((f) => ({ ...f, date: yesterday }))}
+                  >
+                    Yesterday
+                  </button>
+                </div>
+              </div>
+            </div>
+            {form.type === "expense" && goalOptions.length > 0 ? (
+              <div className="txn-goal-field">
+                <span className="txn-label-row">
+                  Goal <span className="txn-optional">optional</span>
+                </span>
+                <PillSelect
+                  className="txn-goal-select"
+                  align="left"
+                  ariaLabel="Goal"
+                  value={form.goal_id}
+                  onChange={(goal_id) => setForm((f) => ({ ...f, goal_id }))}
+                  options={[
+                    { value: "", label: "None" },
+                    ...goalOptions.map((g) => ({
+                      value: String(g.id),
+                      label: g.name,
+                    })),
+                  ]}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <label className="txn-note-field">
+            <span className="txn-label-row">
+              Note <span className="txn-optional">optional</span>
+            </span>
             <input
               type="text"
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-              placeholder="Optional"
+              placeholder="Coffee, rent, paycheck…"
             />
           </label>
-          <div className="form-actions span-2">
-            <button type="submit" className="btn primary">
-              {editingId ? "Update" : "Add"}
+
+          <div className="form-actions txn-actions">
+            <button type="submit" className="btn primary txn-submit">
+              {editingId
+                ? "Save changes"
+                : form.type === "income"
+                  ? "Add income"
+                  : "Add expense"}
             </button>
             {editingId ? (
               <button type="button" className="btn ghost" onClick={resetForm}>
@@ -273,45 +347,38 @@ export function TransactionsPage() {
         <div className="row-between wrap">
           <h2>Transactions</h2>
           <div className="filters-row">
-            <label className="inline-filter">
-              Category
-              <Select
-                compact
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-              >
-                <option value="">All</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label className="inline-filter">
-              Currency
-              <Select
-                compact
-                value={filterCurrency}
-                onChange={(e) => setFilterCurrency(e.target.value)}
-              >
-                <option value="">All</option>
-                {currencies.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code}
-                  </option>
-                ))}
-              </Select>
-            </label>
+            <PillSelect
+              className="txn-filter-category"
+              ariaLabel="Category"
+              value={filterCategory}
+              onChange={setFilterCategory}
+              options={[
+                { value: "", label: "All categories" },
+                ...categories.map((c) => ({
+                  value: String(c.id),
+                  label: c.name,
+                  swatch: c.color,
+                })),
+              ]}
+            />
+            <PillSelect
+              ariaLabel="Currency"
+              value={filterCurrency}
+              onChange={setFilterCurrency}
+              options={[
+                { value: "", label: "All" },
+                ...currencies.map((c) => ({
+                  value: c.code,
+                  label: c.code,
+                })),
+              ]}
+            />
           </div>
         </div>
         {loading ? (
           <p className="muted">Loading…</p>
         ) : items.length === 0 ? (
-          <EmptyState
-            title="No transactions this month"
-            hint="Add income or expenses above."
-          />
+          <EmptyState title="No transactions this month" />
         ) : (
           <table className="table">
             <thead>

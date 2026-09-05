@@ -64,6 +64,17 @@ export function IconDeposit({ className }: IconProps) {
   );
 }
 
+export function IconScale({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 18 18" aria-hidden>
+      <path d="M4.5 3.5v11" {...stroke} />
+      <polyline points="2.5 12.5 4.5 14.5 6.5 12.5" {...stroke} />
+      <path d="M13.5 14.5V3.5" {...stroke} />
+      <polyline points="11.5 5.5 13.5 3.5 15.5 5.5" {...stroke} />
+    </svg>
+  );
+}
+
 export function IconRefresh({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 18 18" aria-hidden>
@@ -97,6 +108,16 @@ export function IconChevronRight({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 18 18" aria-hidden>
       <polyline points="7 4 12 9 7 14" {...stroke} />
+    </svg>
+  );
+}
+
+export function IconCalendar({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 18 18" aria-hidden>
+      <rect x="2.5" y="4" width="13" height="12" rx="1.5" {...stroke} />
+      <path d="M2.5 7.5h13" {...stroke} />
+      <path d="M6 2.5v3M12 2.5v3" {...stroke} />
     </svg>
   );
 }

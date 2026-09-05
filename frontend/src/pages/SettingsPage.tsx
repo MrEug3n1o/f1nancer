@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { AppUpdatePanel } from "../components/AppUpdatePanel";
 import { IconPencil, IconTrash } from "../components/NavIcons";
-import { ErrorBanner, IconButton, SegmentedControl, Select } from "../components/ui";
+import { PillSelect } from "../components/PillSelect";
+import { ErrorBanner, IconButton, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
 import { ISO_CURRENCY_CATALOG } from "../currencyCatalog";
 import type {
@@ -174,25 +175,30 @@ export function SettingsPage() {
     <div className="stack">
       <ErrorBanner message={error} />
 
-      <section className="section">
-        <h2>Currencies</h2>
-        <p className="muted">
-          Enable the currencies you use. Forms only offer this list. You can add
-          any ISO currency and remove unused ones.
-        </p>
-        <div className="form-grid">
+      <section className="section txn-composer">
+        <div className="txn-composer-head">
+          <div>
+            <h2>Currencies</h2>
+            <p className="muted">
+              Enable the currencies you use. Forms only offer this list. You can add
+              any ISO currency and remove unused ones.
+            </p>
+          </div>
+        </div>
+        <div className="txn-form">
           <label>
             Default currency
-            <Select
+            <PillSelect
+              className="pill-select-field wide"
+              align="left"
+              ariaLabel="Default currency"
               value={defaultCurrency}
-              onChange={(e) => void changeDefaultCurrency(e.target.value)}
-            >
-              {currencies.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </Select>
+              onChange={(code) => void changeDefaultCurrency(code)}
+              options={currencies.map((c) => ({
+                value: c.code,
+                label: `${c.code} — ${c.name}`,
+              }))}
+            />
           </label>
         </div>
         <ul className="currency-list">
@@ -220,8 +226,8 @@ export function SettingsPage() {
             </li>
           ))}
         </ul>
-        <form className="form-grid" onSubmit={addCurrency}>
-          <label className="span-2">
+        <form className="txn-form" onSubmit={addCurrency}>
+          <label>
             Search catalog
             <input
               value={catalogFilter}
@@ -229,34 +235,41 @@ export function SettingsPage() {
               placeholder="Euro, UAH, yen…"
             />
           </label>
-          <label className="span-2">
+          <label>
             Add currency
-            <Select
-              wide
+            <PillSelect
+              className="pill-select-field wide"
+              align="left"
+              ariaLabel="Add currency"
               value={addCode}
-              onChange={(e) => setAddCode(e.target.value)}
-            >
-              <option value="">Select…</option>
-              {addable.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </Select>
+              onChange={setAddCode}
+              options={[
+                {
+                  value: "",
+                  label: addable.length ? "Select…" : "No matches",
+                },
+                ...addable.map((c) => ({
+                  value: c.code,
+                  label: `${c.code} — ${c.name}`,
+                })),
+              ]}
+            />
           </label>
-          <div className="form-actions">
-            <button type="submit" className="btn primary" disabled={!addCode}>
+          <div className="form-actions txn-actions">
+            <button type="submit" className="btn primary txn-submit" disabled={!addCode}>
               Add
             </button>
           </div>
         </form>
       </section>
 
-      <section className="section">
-        <h2>Preferences</h2>
-        <form className="form-grid" onSubmit={savePrefs}>
-          <label>
-            Theme
+      <section className="section txn-composer">
+        <div className="txn-composer-head">
+          <h2>Preferences</h2>
+        </div>
+        <form className="txn-form" onSubmit={savePrefs}>
+          <div className="txn-goal-field">
+            <span>Theme</span>
             <SegmentedControl
               value={theme}
               onChange={(next) => {
@@ -269,10 +282,10 @@ export function SettingsPage() {
                 { value: "dark", label: "Dark" },
               ]}
             />
-          </label>
+          </div>
 
-          <div className="form-actions span-2">
-            <button type="submit" className="btn primary">
+          <div className="form-actions txn-actions">
+            <button type="submit" className="btn primary txn-submit">
               Save preferences
             </button>
             {saved ? <span className="success-text">Saved</span> : null}
@@ -280,9 +293,19 @@ export function SettingsPage() {
         </form>
       </section>
 
-      <section className="section">
-        <h2>Categories</h2>
-        <form className="form-grid" onSubmit={saveCategory}>
+      <section className={`section txn-composer txn-${catType}${editingCatId ? " is-editing" : ""}`}>
+        <div className="txn-composer-head">
+          <h2>{editingCatId ? "Edit category" : "Categories"}</h2>
+          <SegmentedControl
+            value={catType}
+            onChange={setCatType}
+            options={[
+              { value: "expense", label: "Expense" },
+              { value: "income", label: "Income" },
+            ]}
+          />
+        </div>
+        <form className="txn-form" onSubmit={saveCategory}>
           <label>
             Name
             <input
@@ -293,17 +316,6 @@ export function SettingsPage() {
             />
           </label>
           <label>
-            Type
-            <SegmentedControl
-              value={catType}
-              onChange={setCatType}
-              options={[
-                { value: "expense", label: "Expense" },
-                { value: "income", label: "Income" },
-              ]}
-            />
-          </label>
-          <label>
             Color
             <input
               type="color"
@@ -311,8 +323,8 @@ export function SettingsPage() {
               onChange={(e) => setCatColor(e.target.value)}
             />
           </label>
-          <div className="form-actions">
-            <button type="submit" className="btn primary">
+          <div className="form-actions txn-actions">
+            <button type="submit" className="btn primary txn-submit">
               {editingCatId ? "Update" : "Add category"}
             </button>
             {editingCatId ? (

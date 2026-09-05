@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { AppProvider } from "./context";
 import { BudgetsPage } from "./pages/BudgetsPage";
+import { CreditsDebtsPage } from "./pages/CreditsDebtsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DepositsPage } from "./pages/DepositsPage";
 import { GoalsPage } from "./pages/GoalsPage";
@@ -20,6 +21,7 @@ export default function App() {
             <Route path="/budgets" element={<BudgetsPage />} />
             <Route path="/goals" element={<GoalsPage />} />
             <Route path="/deposits" element={<DepositsPage />} />
+            <Route path="/credits-debts" element={<CreditsDebtsPage />} />
             <Route path="/subscriptions" element={<SubscriptionsPage />} />
             <Route path="/statistics" element={<Navigate to="/" replace />} />
             <Route path="/settings" element={<SettingsPage />} />

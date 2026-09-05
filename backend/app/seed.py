@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.currency_utils import ensure_currency_row
 from app.models import (
     DEFAULT_DASHBOARD_WIDGETS,
+    DEFAULT_DASHBOARD_WIDGET_LAYOUT,
     DEFAULT_DASHBOARD_WIDGET_VIEWS,
     DEFAULT_STATS_CHARTS,
     Category,
@@ -22,6 +23,8 @@ DEFAULT_CATEGORIES = [
     ("Freelance", "income", "#40916C"),
     ("Other Income", "income", "#52B788"),
     ("Deposit return", "income", "#2D6A4F"),
+    ("Borrowed", "income", "#40916C"),
+    ("Credit repayment", "income", "#2D6A4F"),
     ("Groceries", "expense", "#BC4749"),
     ("Rent", "expense", "#A4161A"),
     ("Utilities", "expense", "#E09F3E"),
@@ -30,8 +33,9 @@ DEFAULT_CATEGORIES = [
     ("Entertainment", "expense", "#7B2D8E"),
     ("Health", "expense", "#1B998B"),
     ("Shopping", "expense", "#D4A373"),
-    ("Subscriptions", "expense", "#6C757D"),
     ("Goals", "expense", "#5B8C5A"),
+    ("Lent", "expense", "#335C81"),
+    ("Debt payment", "expense", "#A4161A"),
     ("Other Expense", "expense", "#495057"),
 ]
 
@@ -93,6 +97,7 @@ def seed_database(db: Session) -> None:
                 dashboard_widgets=DEFAULT_DASHBOARD_WIDGETS,
                 stats_charts=DEFAULT_STATS_CHARTS,
                 dashboard_widget_views=DEFAULT_DASHBOARD_WIDGET_VIEWS,
+                dashboard_widget_layout=DEFAULT_DASHBOARD_WIDGET_LAYOUT,
             )
         )
     else:
@@ -106,6 +111,8 @@ def seed_database(db: Session) -> None:
             settings.stats_charts = DEFAULT_STATS_CHARTS
         if not settings.dashboard_widget_views:
             settings.dashboard_widget_views = DEFAULT_DASHBOARD_WIDGET_VIEWS
+        if not settings.dashboard_widget_layout:
+            settings.dashboard_widget_layout = DEFAULT_DASHBOARD_WIDGET_LAYOUT
         if not settings.default_currency_code:
             settings.default_currency_code = default_code
         ensure_currency_row(db, settings.default_currency_code)
@@ -117,6 +124,10 @@ def seed_database(db: Session) -> None:
         extras = [
             ("Deposit return", "income", "#2D6A4F"),
             ("Goals", "expense", "#5B8C5A"),
+            ("Borrowed", "income", "#40916C"),
+            ("Credit repayment", "income", "#2D6A4F"),
+            ("Lent", "expense", "#335C81"),
+            ("Debt payment", "expense", "#A4161A"),
         ]
         for name, cat_type, color in extras:
             exists = (

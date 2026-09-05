@@ -45,9 +45,33 @@ class DepositStatus(str, Enum):
     cancelled = "cancelled"
 
 
-DEFAULT_DASHBOARD_WIDGETS = '["pocket","overview","spend_by_category","budgets","goals","deposits"]'
+class CreditDebtDirection(str, Enum):
+    credit = "credit"
+    debt = "debt"
+
+
+class CreditDebtSource(str, Enum):
+    bank = "bank"
+    informal = "informal"
+
+
+class CreditDebtStatus(str, Enum):
+    active = "active"
+    paid = "paid"
+    cancelled = "cancelled"
+
+
+DEFAULT_DASHBOARD_WIDGETS = (
+    '["pocket","overview","spend_by_category","budgets","goals","deposits","credits_debts"]'
+)
 DEFAULT_STATS_CHARTS = '["trends","spend_by_category","by_currency"]'
 DEFAULT_DASHBOARD_WIDGET_VIEWS = "{}"
+DEFAULT_DASHBOARD_WIDGET_LAYOUT = (
+    '[{"id":"pocket","span":2,"col":0},{"id":"overview","span":2,"col":0},'
+    '{"id":"spend_by_category","span":1,"col":0},{"id":"budgets","span":1,"col":1},'
+    '{"id":"category_table","span":2,"col":0},{"id":"goals","span":2,"col":0},'
+    '{"id":"deposits","span":2,"col":0},{"id":"credits_debts","span":2,"col":0}]'
+)
 
 
 class Currency(Base):
@@ -93,6 +117,9 @@ class Transaction(Base):
     goal_id: Mapped[int | None] = mapped_column(
         ForeignKey("goals.id", ondelete="SET NULL"), nullable=True
     )
+    credit_debt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("credit_debts.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
@@ -102,6 +129,9 @@ class Transaction(Base):
         back_populates="transactions"
     )
     goal: Mapped["Goal | None"] = relationship(back_populates="transactions")
+    credit_debt: Mapped["CreditDebt | None"] = relationship(
+        back_populates="transactions"
+    )
 
 
 class Budget(Base):
@@ -170,6 +200,34 @@ class Deposit(Base):
     )
 
 
+class CreditDebt(Base):
+    __tablename__ = "credit_debts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    direction: Mapped[str] = mapped_column(String(20), nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False)
+    principal_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency_code: Mapped[str] = mapped_column(
+        String(3), ForeignKey("currencies.code"), nullable=False, default="USD"
+    )
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    annual_rate_bps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    counterparty: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=CreditDebtStatus.active.value
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+
+    transactions: Mapped[list["Transaction"]] = relationship(
+        back_populates="credit_debt"
+    )
+
+
 class RecurringRule(Base):
     __tablename__ = "recurring_rules"
 
@@ -212,4 +270,7 @@ class Settings(Base):
     )
     dashboard_widget_views: Mapped[str] = mapped_column(
         Text, nullable=False, default=DEFAULT_DASHBOARD_WIDGET_VIEWS
+    )
+    dashboard_widget_layout: Mapped[str] = mapped_column(
+        Text, nullable=False, default=DEFAULT_DASHBOARD_WIDGET_LAYOUT
     )

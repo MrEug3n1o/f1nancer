@@ -3,6 +3,9 @@ export type Cadence = "weekly" | "monthly" | "yearly";
 export type GoalStatus = "active" | "completed" | "cancelled";
 export type DepositType = "bank" | "rental";
 export type DepositStatus = "active" | "matured" | "returned" | "cancelled";
+export type CreditDebtDirection = "credit" | "debt";
+export type CreditDebtSource = "bank" | "informal";
+export type CreditDebtStatus = "active" | "paid" | "cancelled";
 export type ThemeMode = "light" | "dark" | "system";
 
 export interface Category {
@@ -33,6 +36,7 @@ export interface Transaction {
   note: string | null;
   recurring_id: number | null;
   goal_id?: number | null;
+  credit_debt_id?: number | null;
   created_at: string;
   category?: Category | null;
 }
@@ -87,6 +91,36 @@ export interface DepositSummaryItem {
   current_value_cents: number;
 }
 
+export interface CreditDebt {
+  id: number;
+  name: string;
+  direction: CreditDebtDirection;
+  source: CreditDebtSource;
+  principal_cents: number;
+  currency_code: string;
+  start_date: string;
+  due_date: string | null;
+  annual_rate_bps: number | null;
+  counterparty: string | null;
+  note: string | null;
+  status: CreditDebtStatus;
+  created_at: string;
+  accrued_interest_cents: number;
+  paid_cents: number;
+  remaining_cents: number;
+  progress_pct: number;
+  days_remaining: number | null;
+  transactions?: Transaction[];
+}
+
+export interface CreditDebtSummaryItem {
+  currency_code: string;
+  credit_count: number;
+  debt_count: number;
+  credit_remaining_cents: number;
+  debt_remaining_cents: number;
+}
+
 export interface RecurringRule {
   id: number;
   amount: number;
@@ -102,6 +136,12 @@ export interface RecurringRule {
   category?: Category | null;
 }
 
+export interface DashboardWidgetLayoutItem {
+  id: DashboardWidgetId;
+  span: 1 | 2;
+  col: 0 | 1;
+}
+
 export interface Settings {
   id: number;
   default_currency_code: string;
@@ -109,6 +149,7 @@ export interface Settings {
   locale: string;
   dashboard_widgets: string[];
   dashboard_widget_views: Record<string, string>;
+  dashboard_widget_layout: DashboardWidgetLayoutItem[];
 }
 
 export interface CurrencyOverview {
@@ -167,6 +208,7 @@ export const DASHBOARD_WIDGET_OPTIONS = [
   { id: "category_table", label: "Category breakdown table" },
   { id: "goals", label: "Goals" },
   { id: "deposits", label: "Deposits" },
+  { id: "credits_debts", label: "Credits & debts" },
 ] as const;
 
 export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_OPTIONS)[number]["id"];
@@ -179,6 +221,7 @@ export const DEFAULT_WIDGET_VIEWS: Record<DashboardWidgetId, string> = {
   category_table: "table",
   goals: "rings",
   deposits: "rings",
+  credits_debts: "rings",
 };
 
 export const WIDGET_VIEW_OPTIONS: Record<
@@ -247,6 +290,17 @@ export const WIDGET_VIEW_OPTIONS: Record<
     { id: "radial", label: "Radial bars" },
     { id: "treemap", label: "Treemap" },
   ],
+  credits_debts: [
+    { id: "rings", label: "Progress rings" },
+    { id: "bars", label: "Progress bars" },
+    { id: "list", label: "List" },
+    { id: "bar_chart", label: "Horizontal bars" },
+    { id: "bar_vertical", label: "Vertical bars" },
+    { id: "pie", label: "Pie chart" },
+    { id: "donut", label: "Donut chart" },
+    { id: "radial", label: "Radial bars" },
+    { id: "treemap", label: "Treemap" },
+  ],
 };
 
 export function resolveWidgetView(
@@ -258,4 +312,60 @@ export function resolveWidgetView(
     return saved;
   }
   return DEFAULT_WIDGET_VIEWS[widgetId];
+}
+
+export const DEFAULT_WIDGET_LAYOUT: DashboardWidgetLayoutItem[] = [
+  { id: "pocket", span: 2, col: 0 },
+  { id: "overview", span: 2, col: 0 },
+  { id: "spend_by_category", span: 1, col: 0 },
+  { id: "budgets", span: 1, col: 1 },
+  { id: "category_table", span: 2, col: 0 },
+  { id: "goals", span: 2, col: 0 },
+  { id: "deposits", span: 2, col: 0 },
+  { id: "credits_debts", span: 2, col: 0 },
+];
+
+const WIDGET_ID_SET = new Set<string>(
+  DASHBOARD_WIDGET_OPTIONS.map((option) => option.id),
+);
+
+export function resolveWidgetLayout(
+  layout: DashboardWidgetLayoutItem[] | undefined,
+): DashboardWidgetLayoutItem[] {
+  const seen = new Set<string>();
+  const result: DashboardWidgetLayoutItem[] = [];
+  let pendingHalf: DashboardWidgetLayoutItem | null = null;
+  for (const item of layout ?? []) {
+    if (!WIDGET_ID_SET.has(item.id) || seen.has(item.id)) continue;
+    const span: 1 | 2 = item.span === 1 ? 1 : 2;
+    const hasCol = item.col === 0 || item.col === 1;
+    const next: DashboardWidgetLayoutItem = {
+      id: item.id,
+      span,
+      col: span === 2 ? 0 : hasCol ? item.col : 0,
+    };
+    if (span === 1 && !hasCol) {
+      if (pendingHalf) {
+        pendingHalf.col = 0;
+        result.push(pendingHalf);
+        next.col = 1;
+        result.push(next);
+        pendingHalf = null;
+      } else {
+        pendingHalf = next;
+      }
+    } else {
+      if (pendingHalf) {
+        result.push(pendingHalf);
+        pendingHalf = null;
+      }
+      result.push(next);
+    }
+    seen.add(item.id);
+  }
+  if (pendingHalf) result.push(pendingHalf);
+  for (const fallback of DEFAULT_WIDGET_LAYOUT) {
+    if (!seen.has(fallback.id)) result.push(fallback);
+  }
+  return result;
 }

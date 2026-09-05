@@ -58,8 +58,22 @@ export function centsToDollarsInput(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
+export function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function parseISODate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toISODate(new Date());
+}
+
+export function shiftDateISO(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return toISODate(new Date(y, m - 1, d + days));
 }
 
 export function resolveTheme(

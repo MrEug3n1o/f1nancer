@@ -56,6 +56,7 @@ class TransactionCreate(BaseModel):
     category_id: int
     note: str | None = None
     goal_id: int | None = None
+    credit_debt_id: int | None = None
 
     @field_validator("currency_code")
     @classmethod
@@ -71,6 +72,7 @@ class TransactionUpdate(BaseModel):
     category_id: int | None = None
     note: str | None = None
     goal_id: int | None = None
+    credit_debt_id: int | None = None
 
     @field_validator("currency_code")
     @classmethod
@@ -90,6 +92,7 @@ class TransactionOut(BaseModel):
     note: str | None
     recurring_id: int | None
     goal_id: int | None = None
+    credit_debt_id: int | None = None
     created_at: datetime
     category: CategoryOut | None = None
 
@@ -243,6 +246,80 @@ class DepositSummaryItem(BaseModel):
     current_value_cents: int
 
 
+class CreditDebtCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    direction: Literal["credit", "debt"]
+    source: Literal["bank", "informal"]
+    principal_cents: int = Field(gt=0)
+    currency_code: str = Field(min_length=3, max_length=3)
+    start_date: Date
+    due_date: Date | None = None
+    annual_rate_bps: int | None = Field(default=None, ge=0)
+    counterparty: str | None = Field(default=None, max_length=200)
+    note: str | None = None
+    already_paid_cents: int = Field(default=0, ge=0)
+
+    @field_validator("currency_code")
+    @classmethod
+    def upper_currency(cls, v: str) -> str:
+        return v.strip().upper()
+
+
+class CreditDebtUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    principal_cents: int | None = Field(default=None, gt=0)
+    currency_code: str | None = Field(default=None, min_length=3, max_length=3)
+    start_date: Date | None = None
+    due_date: Date | None = None
+    annual_rate_bps: int | None = Field(default=None, ge=0)
+    counterparty: str | None = Field(default=None, max_length=200)
+    note: str | None = None
+    status: Literal["active", "paid", "cancelled"] | None = None
+
+    @field_validator("currency_code")
+    @classmethod
+    def upper_currency(cls, v: str | None) -> str | None:
+        return v.strip().upper() if v else v
+
+
+class CreditDebtPay(BaseModel):
+    amount: int = Field(gt=0, description="Payment in cents")
+    date: Date | None = None
+    note: str | None = None
+
+
+class CreditDebtOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    direction: str
+    source: str
+    principal_cents: int
+    currency_code: str
+    start_date: Date
+    due_date: Date | None
+    annual_rate_bps: int | None
+    counterparty: str | None
+    note: str | None
+    status: str
+    created_at: datetime
+    accrued_interest_cents: int = 0
+    paid_cents: int = 0
+    remaining_cents: int = 0
+    progress_pct: float = 0.0
+    days_remaining: int | None = None
+    transactions: list[TransactionOut] = Field(default_factory=list)
+
+
+class CreditDebtSummaryItem(BaseModel):
+    currency_code: str
+    credit_count: int
+    debt_count: int
+    credit_remaining_cents: int
+    debt_remaining_cents: int
+
+
 class RecurringCreate(BaseModel):
     amount: int = Field(gt=0)
     currency_code: str = Field(min_length=3, max_length=3)
@@ -294,6 +371,12 @@ class RecurringOut(BaseModel):
     category: CategoryOut | None = None
 
 
+class DashboardWidgetLayoutItem(BaseModel):
+    id: str
+    span: Literal[1, 2]
+    col: Literal[0, 1] = 0
+
+
 class SettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -304,6 +387,7 @@ class SettingsOut(BaseModel):
     dashboard_widgets: list[str]
     stats_charts: list[str]
     dashboard_widget_views: dict[str, str]
+    dashboard_widget_layout: list[DashboardWidgetLayoutItem]
 
 
 class SettingsUpdate(BaseModel):
@@ -313,6 +397,7 @@ class SettingsUpdate(BaseModel):
     dashboard_widgets: list[str] | None = None
     stats_charts: list[str] | None = None
     dashboard_widget_views: dict[str, str] | None = None
+    dashboard_widget_layout: list[DashboardWidgetLayoutItem] | None = None
 
     @field_validator("default_currency_code")
     @classmethod

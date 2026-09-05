@@ -11,6 +11,7 @@ from app.routers import (
     analytics,
     budgets,
     categories,
+    credits_debts,
     currencies,
     deposits,
     goals,
@@ -69,6 +70,7 @@ app.include_router(transactions.router, prefix="/api")
 app.include_router(budgets.router, prefix="/api")
 app.include_router(goals.router, prefix="/api")
 app.include_router(deposits.router, prefix="/api")
+app.include_router(credits_debts.router, prefix="/api")
 app.include_router(recurring.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")

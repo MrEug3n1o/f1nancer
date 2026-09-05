@@ -8,7 +8,14 @@ import {
 } from "react";
 import { api } from "./api";
 import type { Currency, Settings } from "./types";
+import { DEFAULT_WIDGET_LAYOUT } from "./types";
 import { applyTheme, currentMonth, resolveTheme } from "./utils";
+
+export type DashboardCustomizeSession = {
+  saving: boolean;
+  onDone: () => Promise<void>;
+  onCancel: () => void;
+};
 
 interface AppContextValue {
   month: string;
@@ -20,6 +27,8 @@ interface AppContextValue {
   resolvedTheme: "light" | "dark";
   dashboardCustomizing: boolean;
   setDashboardCustomizing: (value: boolean | ((prev: boolean) => boolean)) => void;
+  dashboardCustomizeSession: DashboardCustomizeSession | null;
+  registerDashboardCustomize: (session: DashboardCustomizeSession | null) => void;
   refreshSettings: () => Promise<void>;
   refreshCurrencies: () => Promise<void>;
 }
@@ -31,8 +40,9 @@ const fallbackSettings: Settings = {
   default_currency_code: "USD",
   theme: "system",
   locale: "en-US",
-  dashboard_widgets: ["pocket", "overview", "spend_by_category", "budgets", "goals", "deposits"],
+  dashboard_widgets: ["pocket", "overview", "spend_by_category", "budgets", "goals", "deposits", "credits_debts"],
   dashboard_widget_views: {},
+  dashboard_widget_layout: DEFAULT_WIDGET_LAYOUT,
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -40,6 +50,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [dashboardCustomizing, setDashboardCustomizing] = useState(false);
+  const [dashboardCustomizeSession, setDashboardCustomizeSession] =
+    useState<DashboardCustomizeSession | null>(null);
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() =>
     resolveTheme("system"),
   );
@@ -99,6 +111,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         resolvedTheme,
         dashboardCustomizing,
         setDashboardCustomizing,
+        dashboardCustomizeSession,
+        registerDashboardCustomize: setDashboardCustomizeSession,
         refreshSettings,
         refreshCurrencies,
       }}

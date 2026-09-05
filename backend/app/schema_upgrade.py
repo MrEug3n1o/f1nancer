@@ -10,6 +10,7 @@ from sqlalchemy.engine import Connection, Engine
 from app.iso_currencies import currency_name
 from app.models import (
     DEFAULT_DASHBOARD_WIDGETS,
+    DEFAULT_DASHBOARD_WIDGET_LAYOUT,
     DEFAULT_DASHBOARD_WIDGET_VIEWS,
     DEFAULT_STATS_CHARTS,
 )
@@ -245,15 +246,19 @@ def ensure_schema(engine: Engine) -> None:
                 "TEXT",
                 DEFAULT_DASHBOARD_WIDGET_VIEWS.replace("'", "''"),
             ),
+            (
+                "dashboard_widget_layout",
+                "TEXT",
+                DEFAULT_DASHBOARD_WIDGET_LAYOUT.replace("'", "''"),
+            ),
         ]
         for col, typ, default in extras:
             if col not in settings_cols:
-                # SQLite default for empty string
+                # SQLite default for empty string. Use driver SQL so JSON
+                # colons (e.g. "span":2) are not treated as bind params.
                 default_sql = f"'{default}'"
-                conn.execute(
-                    text(
-                        f"ALTER TABLE settings ADD COLUMN {col} {typ} DEFAULT {default_sql}"
-                    )
+                conn.exec_driver_sql(
+                    f"ALTER TABLE settings ADD COLUMN {col} {typ} DEFAULT {default_sql}"
                 )
                 conn.execute(
                     text(
@@ -419,3 +424,36 @@ def ensure_schema(engine: Engine) -> None:
                 )
 
         migrate_goal_contributions_to_transactions(conn)
+
+        tables_now = set(inspect(engine).get_table_names())
+        if "credit_debts" not in tables_now and "currencies" in tables_now:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE credit_debts (
+                        id INTEGER NOT NULL PRIMARY KEY,
+                        name VARCHAR(200) NOT NULL,
+                        direction VARCHAR(20) NOT NULL,
+                        source VARCHAR(20) NOT NULL,
+                        principal_cents INTEGER NOT NULL,
+                        currency_code VARCHAR(3) NOT NULL,
+                        start_date DATE NOT NULL,
+                        due_date DATE,
+                        annual_rate_bps INTEGER,
+                        counterparty VARCHAR(200),
+                        note TEXT,
+                        status VARCHAR(20) NOT NULL,
+                        created_at DATETIME NOT NULL,
+                        FOREIGN KEY(currency_code) REFERENCES currencies (code)
+                    )
+                    """
+                )
+            )
+
+        tables_now = set(inspect(engine).get_table_names())
+        if "transactions" in tables_now and "credit_debts" in tables_now:
+            txn_cols = {c["name"] for c in inspect(engine).get_columns("transactions")}
+            if "credit_debt_id" not in txn_cols:
+                conn.execute(
+                    text("ALTER TABLE transactions ADD COLUMN credit_debt_id INTEGER")
+                )

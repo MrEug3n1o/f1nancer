@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
+import { DatePicker } from "../components/DatePicker";
 import { IconPencil, IconTrash } from "../components/NavIcons";
-import { EmptyState, ErrorBanner, IconButton, Money, ProgressBar, Select } from "../components/ui";
+import { PillSelect } from "../components/PillSelect";
+import { EmptyState, ErrorBanner, IconButton, Money, ProgressBar } from "../components/ui";
 import { useApp } from "../context";
 import type { Category, Goal, Transaction } from "../types";
 import { centsToDollarsInput, dollarsToCents, todayISO } from "../utils";
@@ -211,9 +213,11 @@ export function GoalsPage() {
   return (
     <div className="stack">
       <ErrorBanner message={error} />
-      <section className="section">
-        <h2>{editingGoalId ? "Edit savings goal" : "New savings goal"}</h2>
-        <form className="form-grid" onSubmit={onSubmitGoal}>
+      <section className={`section txn-composer${editingGoalId ? " is-editing" : ""}`}>
+        <div className="txn-composer-head">
+          <h2>{editingGoalId ? "Edit savings goal" : "New savings goal"}</h2>
+        </div>
+        <form className="txn-form" onSubmit={onSubmitGoal}>
           <label>
             Name
             <input
@@ -223,43 +227,49 @@ export function GoalsPage() {
               placeholder="Emergency fund"
             />
           </label>
-          <label>
-            Target
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              required
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder="0.00"
-            />
-          </label>
-          <label>
-            Currency
-            <Select
-              required
+          <div className="txn-amount-block">
+            <div className="txn-amount-row">
+              <input
+                className="txn-amount-input"
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
+                required
+                aria-label="Target"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <PillSelect
+              className="txn-currency-select"
+              ariaLabel="Currency"
               value={currencyCode}
               disabled={currencyLocked}
-              onChange={(e) => setCurrencyCode(e.target.value)}
-            >
-              {currencies.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label>
-            Deadline
-            <input
-              type="date"
-              value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
+              onChange={setCurrencyCode}
+              options={currencies.map((c) => ({
+                value: c.code,
+                label: c.code,
+              }))}
             />
-          </label>
-          <div className="form-actions span-2">
-            <button type="submit" className="btn primary">
+          </div>
+          <div className="txn-date-field">
+            <label htmlFor="goal-deadline">
+              <span className="txn-label-row">
+                Deadline <span className="txn-optional">optional</span>
+              </span>
+            </label>
+            <DatePicker
+              id="goal-deadline"
+              value={deadline}
+              onChange={setDeadline}
+              allowClear
+              placeholder="Choose deadline"
+            />
+          </div>
+          <div className="form-actions txn-actions">
+            <button type="submit" className="btn primary txn-submit">
               {editingGoalId ? "Update goal" : "Create goal"}
             </button>
             {editingGoalId ? (
@@ -389,31 +399,26 @@ export function GoalsPage() {
                       </label>
                       <label>
                         Date
-                        <input
-                          type="date"
-                          required
+                        <DatePicker
                           value={draft.date}
-                          onChange={(e) =>
-                            setDraft(g.id, { date: e.target.value })
-                          }
+                          onChange={(date) => setDraft(g.id, { date })}
                         />
                       </label>
                       <label>
                         Category
-                        <Select
-                          required
+                        <PillSelect
+                          align="left"
+                          ariaLabel="Category"
                           value={draft.category_id}
-                          onChange={(e) =>
-                            setDraft(g.id, { category_id: e.target.value })
+                          onChange={(category_id) =>
+                            setDraft(g.id, { category_id })
                           }
-                        >
-                          <option value="">Select…</option>
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </Select>
+                          options={categories.map((c) => ({
+                            value: String(c.id),
+                            label: c.name,
+                            swatch: c.color,
+                          }))}
+                        />
                       </label>
                       <label>
                         Note

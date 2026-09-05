@@ -11,6 +11,7 @@ import {
   IconHome,
   IconList,
   IconRefresh,
+  IconScale,
   IconTarget,
   IconWallet,
 } from "./NavIcons";
@@ -28,6 +29,7 @@ const links: {
   { to: "/budgets", label: "Budgets", icon: IconWallet },
   { to: "/goals", label: "Goals", icon: IconTarget },
   { to: "/deposits", label: "Deposits", icon: IconDeposit },
+  { to: "/credits-debts", label: "Credits & Debts", icon: IconScale },
   { to: "/subscriptions", label: "Subscriptions", icon: IconRefresh },
   { to: "/settings", label: "Settings", icon: IconGear },
 ];
@@ -49,14 +51,16 @@ export function Layout({ children }: { children: ReactNode }) {
     locale,
     dashboardCustomizing,
     setDashboardCustomizing,
+    dashboardCustomizeSession,
   } = useApp();
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
   useEffect(() => {
-    if (!isDashboard) {
+    if (!isDashboard && dashboardCustomizing) {
+      dashboardCustomizeSession?.onCancel();
       setDashboardCustomizing(false);
     }
-  }, [isDashboard, setDashboardCustomizing]);
+  }, [isDashboard, dashboardCustomizing, dashboardCustomizeSession, setDashboardCustomizing]);
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -121,33 +125,66 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="month-nav">
               <button
                 type="button"
-                className="btn ghost"
+                className="widget-icon-btn"
                 aria-label="Previous month"
                 onClick={() => setMonth(shiftMonth(month, -1))}
               >
-                ‹
+                <IconChevronLeft className="widget-menu-icon" />
               </button>
               <h1>{formatMonthLabel(month, locale || undefined)}</h1>
               <button
                 type="button"
-                className="btn ghost"
+                className="widget-icon-btn"
                 aria-label="Next month"
                 onClick={() => setMonth(shiftMonth(month, 1))}
               >
-                ›
+                <IconChevronRight className="widget-menu-icon" />
               </button>
             </div>
           ) : (
             <div />
           )}
           {isDashboard ? (
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => setDashboardCustomizing((v) => !v)}
-            >
-              {dashboardCustomizing ? "Done" : "Customize widgets"}
-            </button>
+            dashboardCustomizing ? (
+              <div className="topbar-actions">
+                <button
+                  type="button"
+                  className="topbar-text-btn"
+                  disabled={dashboardCustomizeSession?.saving}
+                  onClick={() => {
+                    dashboardCustomizeSession?.onCancel();
+                    setDashboardCustomizing(false);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="topbar-text-btn accent"
+                  disabled={dashboardCustomizeSession?.saving}
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        await dashboardCustomizeSession?.onDone();
+                        setDashboardCustomizing(false);
+                      } catch {
+                        /* stay in customize; page shows the error */
+                      }
+                    })();
+                  }}
+                >
+                  {dashboardCustomizeSession?.saving ? "Saving…" : "Done"}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="topbar-text-btn"
+                onClick={() => setDashboardCustomizing(true)}
+              >
+                Customize
+              </button>
+            )
           ) : null}
         </header>
         <main className="content">{children}</main>

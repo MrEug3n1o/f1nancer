@@ -243,3 +243,33 @@ export function IconEye({ className }: IconProps) {
     </svg>
   );
 }
+
+export function IconGrip({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 18 18" aria-hidden>
+      <circle cx="7" cy="4.5" r="1.15" fill="currentColor" />
+      <circle cx="11" cy="4.5" r="1.15" fill="currentColor" />
+      <circle cx="7" cy="9" r="1.15" fill="currentColor" />
+      <circle cx="11" cy="9" r="1.15" fill="currentColor" />
+      <circle cx="7" cy="13.5" r="1.15" fill="currentColor" />
+      <circle cx="11" cy="13.5" r="1.15" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function IconFullWidth({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 18 18" aria-hidden>
+      <rect x="2.5" y="5" width="13" height="8" rx="1.5" {...stroke} />
+    </svg>
+  );
+}
+
+export function IconHalfWidth({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 18 18" aria-hidden>
+      <rect x="2.5" y="5" width="5.5" height="8" rx="1.5" {...stroke} />
+      <rect x="10" y="5" width="5.5" height="8" rx="1.5" {...stroke} />
+    </svg>
+  );
+}
