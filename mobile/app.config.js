@@ -28,6 +28,7 @@ const version = readAppVersion();
 const expoConfig = {
   name: "F1nancer",
   slug: "f1nancer",
+  owner: "potuzhnist",
   version,
   orientation: "portrait",
   icon: "./assets/icon.png",
