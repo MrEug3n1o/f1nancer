@@ -1,0 +1,35 @@
+---
+description: Clean up temporary test data after feature work is committed and pushed
+alwaysApply: true
+---
+
+# Clean Up Test Data After Feature Work
+
+When implementing a feature and creating temporary or ad-hoc test data (seed records, fixture rows, manual DB/Firestore entries, sample files, local-only scripts, etc.), treat cleanup as part of finishing the work.
+
+## Required workflow
+
+1. Track every piece of test data you create during the feature (what it is, where it lives).
+2. After the feature is done and the code is **committed and pushed**, remove that temporary test data.
+3. Confirm nothing leftover remains in local DBs, emulators, cloud envs, fixtures, or scratch files unless it is intentional, permanent seed/fixture data meant to stay in the repo.
+
+## Do
+
+- Prefer isolated, clearly named test data so it is easy to find and delete
+- Clean up remote/emulator data you created for manual verification, not only local files
+- Leave permanent fixtures/seeds that the feature or tests intentionally depend on
+
+## Don't
+
+- Leave orphaned manual test records, scratch seed scripts, or throwaway sample files after push
+- Commit temporary verification-only data that was never meant to ship
+- Assume "tests pass" means environments are clean — clean data separately after ship
+
+## Example
+
+```text
+❌ BAD: Add Firestore docs / DB rows to verify a feature, then commit + push and stop.
+
+✅ GOOD: Verify with temporary data → commit + push the feature → delete the temporary
+         docs/rows/files and confirm the environment is clean.
+```
