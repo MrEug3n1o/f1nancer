@@ -72,7 +72,9 @@ Optional debug zip: `$env:MAKE_ZIP="1"; .\desktop\build.ps1`
 
 ### Build without a Windows PC
 
-Push a `v*` tag or run the **Desktop release** workflow (`workflow_dispatch`) on GitHub Actions. Either path publishes the Mac DMG and Windows Setup.exe as a GitHub Release. Manual runs tag the release as `v` plus `APP_VERSION` from `backend/app/version.py`.
+Push a `v*` tag or run the **App release** workflow (`workflow_dispatch`, [`.github/workflows/desktop-release.yml`](.github/workflows/desktop-release.yml)) on GitHub Actions. Either path publishes the Mac DMG, Windows Setup.exe, and Android APK as a GitHub Release. Manual runs tag the release as `v` plus `APP_VERSION` from `backend/app/version.py`.
+
+Android CI needs GitHub secrets: `EXPO_TOKEN`, `EAS_PROJECT_ID`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_POWERSYNC_URL`. One-time local setup: `cd mobile && npx eas-cli login && npx eas-cli init`, paste the project id into `COMMITTED_EAS_PROJECT_ID` in [`mobile/app.config.js`](mobile/app.config.js) (or only use the `EAS_PROJECT_ID` secret), then run one interactive `npx eas-cli build -p android --profile apk` so EAS can create the Android keystore.
 
 ## In-app updates (Mac & Windows)
 
@@ -125,6 +127,14 @@ Legacy (pre-sync) desktop files can be imported from Settings after you sign in:
 
 ## Mobile
 
+### Download (Android)
+
+Visitors can install from the [portfolio F1nancer page](https://yevhenii-dyl-portfolio.web.app/f1nancer) or [GitHub Releases](https://github.com/MrEug3n1o/f1nancer/releases) (`F1nancer-<version>.apk`).
+
+On Android: open the APK → allow install from that source if prompted → Install. iOS is not available as a public download (App Store / TestFlight only).
+
+### Development
+
 ```bash
 cd mobile
 cp .env.example .env
@@ -134,6 +144,8 @@ npx expo start
 ```
 
 Use the same username and password as desktop. Create a transaction in airplane mode, then reconnect — it should appear on desktop and in the Supabase table editor.
+
+Production APK builds use EAS (`mobile/eas.json` profile `apk`) and bake in the three `EXPO_PUBLIC_*` values from CI secrets (not a committed `.env`).
 
 ## Features
 

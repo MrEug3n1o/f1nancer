@@ -1,12 +1,12 @@
 ---
 name: new-version
-description: Bumps F1nancer APP_VERSION (e.g. 0.1.1 → 0.1.2), commits, pushes, and dispatches the Desktop release GitHub Actions workflow. Use when the user asks for a new version, version bump, app release, or to run the desktop-release workflow.
+description: Bumps F1nancer APP_VERSION (e.g. 0.1.1 → 0.1.2), commits, pushes, and dispatches the App release GitHub Actions workflow. Use when the user asks for a new version, version bump, app release, or to run the desktop-release workflow.
 disable-model-invocation: true
 ---
 
 # New version
 
-Ship a new F1nancer desktop version: bump `APP_VERSION`, push it, then run **Desktop release**.
+Ship a new F1nancer version: bump `APP_VERSION`, push it, then run **App release** (Mac DMG + Windows Setup.exe + Android APK).
 
 Invoking this skill **is** authorization to commit the version files, push to origin, and dispatch the workflow. Do not force-push, skip hooks, or amend unless the user explicitly asks.
 
@@ -17,7 +17,7 @@ Invoking this skill **is** authorization to commit the version files, push to or
 | `backend/app/version.py` | `APP_VERSION = "x.y.z"` — source of truth |
 | `desktop/f1nancer.iss` | fallback `#define MyAppVersion "x.y.z"` (keep in sync) |
 
-Do **not** change `frontend/package.json` (`0.0.0` is unrelated). Build scripts and the release job read `APP_VERSION` themselves.
+Do **not** change `frontend/package.json` (`0.0.0` is unrelated). Mobile `app.config.js` reads `APP_VERSION` automatically; optionally keep `mobile/package.json` version in sync. Build scripts and the release job read `APP_VERSION` themselves.
 
 ## Target version
 
@@ -41,7 +41,7 @@ Copy and track:
 - [ ] Preflight
 - [ ] Bump version files
 - [ ] Commit and push
-- [ ] Dispatch Desktop release
+- [ ] Dispatch App release
 - [ ] Report the run URL
 ```
 
@@ -99,10 +99,10 @@ Stop if the push fails. The workflow checks out the remote ref; an unpushed bump
 
 Do **not** create or push a `v*` git tag. The workflow already publishes GitHub Release `v{APP_VERSION}`. A tag push would start a second run.
 
-### 4. Dispatch Desktop release
+### 4. Dispatch App release
 
 Workflow file: `.github/workflows/desktop-release.yml`  
-Workflow name: `Desktop release`  
+Workflow name: `App release`  
 Trigger used: `workflow_dispatch` (not a tag)
 
 ```bash
@@ -117,7 +117,7 @@ gh run list --workflow=desktop-release.yml --branch "$(git rev-parse --abbrev-re
 
 Open/print the newest run URL (`gh run view <id> --web` is fine to get the URL; prefer printing it).
 
-Do **not** `gh run watch` the full Windows + macOS build unless the user asks to wait. Builds are long.
+Do **not** `gh run watch` the full Windows + macOS + Android build unless the user asks to wait. Builds are long.
 
 ### 5. Report
 
@@ -126,12 +126,12 @@ Tell the user:
 - old → new version
 - commit SHA
 - workflow run URL
-- that GitHub Release `vX.Y.Z` is created when the `release` job finishes (Mac DMG + Windows Setup.exe)
+- that GitHub Release `vX.Y.Z` is created when the `release` job finishes (Mac DMG + Windows Setup.exe + Android APK)
 - any files left uncommitted
 
 ## Re-run only
 
-If the user wants to re-dispatch **Desktop release** for the version already on the branch (no bump): skip steps 2–3, still run preflight (tag/release may already exist — warn and only proceed if they confirm).
+If the user wants to re-dispatch **App release** for the version already on the branch (no bump): skip steps 2–3, still run preflight (tag/release may already exist — warn and only proceed if they confirm).
 
 ## Examples
 
