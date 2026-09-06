@@ -51,7 +51,7 @@ const expoConfig = {
       backgroundColor: "#0f1419",
     },
   },
-  plugins: ["@op-engineering/op-sqlite"],
+  plugins: [],
 };
 
 // Paste the UUID from `eas init` here, or set EAS_PROJECT_ID in CI secrets.
