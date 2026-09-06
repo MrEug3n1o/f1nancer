@@ -55,7 +55,7 @@ const expoConfig = {
 };
 
 // Paste the UUID from `eas init` here, or set EAS_PROJECT_ID in CI secrets.
-const COMMITTED_EAS_PROJECT_ID = "";
+const COMMITTED_EAS_PROJECT_ID = "bd86d831-ef3d-495d-ac7e-02ef99e11a1b";
 const projectId = process.env.EAS_PROJECT_ID || COMMITTED_EAS_PROJECT_ID;
 if (projectId) {
   expoConfig.extra = { eas: { projectId } };
