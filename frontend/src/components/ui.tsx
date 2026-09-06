@@ -36,6 +36,7 @@ export function SegmentedControl<T extends string>({
   options,
   compact = false,
   ariaLabel,
+  className,
 }: {
   value: T;
   onChange: (value: T) => void;
@@ -47,10 +48,11 @@ export function SegmentedControl<T extends string>({
   }[];
   compact?: boolean;
   ariaLabel?: string;
+  className?: string;
 }) {
   return (
     <div
-      className={`segmented${compact ? " compact" : ""}`}
+      className={`segmented${compact ? " compact" : ""}${className ? ` ${className}` : ""}`}
       role="group"
       aria-label={ariaLabel}
     >

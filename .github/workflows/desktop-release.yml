@@ -99,7 +99,7 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
 
       - name: Setup Expo and EAS
-        uses: expo/expo-github-action@v8
+        uses: expo/expo-github-action@v9
         with:
           eas-version: latest
           packager: npm

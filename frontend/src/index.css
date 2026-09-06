@@ -484,12 +484,65 @@ code {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding-block: 0.85rem;
+  padding-block: 1rem;
+}
+
+.settings-theme-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .settings-theme-label {
-  font-weight: 600;
-  font-size: 0.95rem;
+  font-weight: 650;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+}
+
+.segmented.theme-switch {
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+  background: color-mix(in srgb, var(--ink) 5%, var(--input-bg));
+  border-color: color-mix(in srgb, var(--line) 80%, var(--ink));
+  box-shadow: inset 0 1px 2px rgba(28, 42, 31, 0.06);
+}
+
+.segmented.theme-switch .segmented-btn {
+  min-width: 4.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  font-weight: 550;
+  color: var(--muted);
+}
+
+.segmented.theme-switch .segmented-btn:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.segmented.theme-switch .segmented-btn.active {
+  background: var(--card-bg);
+  color: var(--ink);
+  font-weight: 650;
+  box-shadow:
+    0 1px 2px rgba(28, 42, 31, 0.1),
+    0 0 0 1px color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+[data-theme="dark"] .segmented.theme-switch {
+  background: #0f1216;
+  border-color: #343b44;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .segmented.theme-switch .segmented-btn.active {
+  background: #2a3038;
+  color: #f0f2f4;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.35),
+    0 0 0 1px #3d4652;
 }
 
 .section h2 {

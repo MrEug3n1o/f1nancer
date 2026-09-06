@@ -278,16 +278,20 @@ export function SettingsPage() {
       </section>
 
       <section className="section settings-theme-bar">
-        <span className="settings-theme-label">Theme</span>
+        <div className="settings-theme-copy">
+          <span className="settings-theme-label">Theme</span>
+          <span className="muted small">Appearance for this device</span>
+        </div>
         <SegmentedControl
           compact
+          className="theme-switch"
           ariaLabel="Theme"
           value={theme}
           onChange={(next) => void changeTheme(next)}
           options={[
-            { value: "system", label: "System" },
-            { value: "light", label: "Light" },
-            { value: "dark", label: "Dark" },
+            { value: "system", label: "System", title: "Match system setting" },
+            { value: "light", label: "Light", title: "Light theme" },
+            { value: "dark", label: "Dark", title: "Dark theme" },
           ]}
         />
       </section>
