@@ -107,6 +107,7 @@ def _to_out(deposit: Deposit) -> DepositOut:
         currency_code=deposit.currency_code,
         start_date=deposit.start_date,
         end_date=deposit.end_date,
+        money_location=deposit.money_location,
         annual_rate_bps=deposit.annual_rate_bps,
         counterparty=deposit.counterparty,
         note=deposit.note,
@@ -152,6 +153,7 @@ def create_deposit(payload: DepositCreate, db: Session = Depends(get_db)):
             payload.counterparty.strip() if payload.counterparty else None
         ),
         note=payload.note,
+        money_location=payload.money_location,
         status=DepositStatus.active.value,
     )
     db.add(deposit)
@@ -218,6 +220,7 @@ def complete_deposit(deposit_id: int, db: Session = Depends(get_db)):
             type="income",
             category_id=category.id,
             note=note,
+            money_location=deposit.money_location,
         )
     )
 

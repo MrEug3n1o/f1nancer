@@ -7,7 +7,7 @@ import { PillSelect } from "../components/PillSelect";
 import { EmptyState, ErrorBanner, IconButton, Money, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
 import { usePageComposer } from "../hooks/usePageComposer";
-import type { Cadence, Category, CategoryType, RecurringRule } from "../types";
+import type { Cadence, Category, CategoryType, MoneyLocation, RecurringRule } from "../types";
 import { dollarsToCents, todayISO } from "../utils";
 
 export function SubscriptionsPage() {
@@ -17,6 +17,7 @@ export function SubscriptionsPage() {
   const [amount, setAmount] = useState("");
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency);
   const [type, setType] = useState<CategoryType>("expense");
+  const [moneyLocation, setMoneyLocation] = useState<MoneyLocation>("card");
   const [categoryId, setCategoryId] = useState("");
   const [cadence, setCadence] = useState<Cadence>("monthly");
   const [nextRun, setNextRun] = useState(todayISO());
@@ -63,6 +64,7 @@ export function SubscriptionsPage() {
     setNextRun(todayISO());
     setCadence("monthly");
     setType("expense");
+    setMoneyLocation("card");
   }
 
   const { showComposer, closeComposer } = usePageComposer({
@@ -81,6 +83,7 @@ export function SubscriptionsPage() {
         currency_code: currencyCode,
         category_id: Number(categoryId),
         type,
+        money_location: moneyLocation,
         cadence,
         next_run_date: nextRun,
         note: note.trim() || null,
@@ -133,6 +136,15 @@ export function SubscriptionsPage() {
             />
           </div>
           <form className="txn-form" onSubmit={onSubmit}>
+            <SegmentedControl
+              ariaLabel="Cash or card"
+              value={moneyLocation}
+              onChange={setMoneyLocation}
+              options={[
+                { value: "cash", label: "Cash" },
+                { value: "card", label: "Card" },
+              ]}
+            />
             <div className="txn-amount-block">
               <div className="txn-amount-row">
                 <span className="txn-amount-sign" aria-hidden>
@@ -266,6 +278,7 @@ export function SubscriptionsPage() {
             <thead>
               <tr>
                 <th>Note / category</th>
+                <th>From</th>
                 <th>Cadence</th>
                 <th>Next</th>
                 <th className="num">Amount</th>
@@ -280,6 +293,9 @@ export function SubscriptionsPage() {
                     {r.note || r.category?.name || "—"}
                     <div className="muted small">{r.category?.name}</div>
                   </td>
+                  <td className="muted">
+                    {r.money_location === "cash" ? "Cash" : "Card"}
+                  </td>
                   <td>{r.cadence}</td>
                   <td>{r.next_run_date}</td>
                   <td className={`num ${r.type}`}>
@@ -287,20 +303,22 @@ export function SubscriptionsPage() {
                   </td>
                   <td>{r.active ? "Active" : "Paused"}</td>
                   <td className="actions">
-                    <button
-                      type="button"
-                      className="btn ghost small"
-                      onClick={() => void toggleActive(r)}
-                    >
-                      {r.active ? "Pause" : "Resume"}
-                    </button>
-                    <IconButton
-                      label="Delete"
-                      danger
-                      onClick={() => void onDelete(r.id)}
-                    >
-                      <IconTrash className="btn-icon" />
-                    </IconButton>
+                    <span className="row-actions">
+                      <button
+                        type="button"
+                        className="btn ghost small"
+                        onClick={() => void toggleActive(r)}
+                      >
+                        {r.active ? "Pause" : "Resume"}
+                      </button>
+                      <IconButton
+                        label="Delete"
+                        danger
+                        onClick={() => void onDelete(r.id)}
+                      >
+                        <IconTrash className="btn-icon" />
+                      </IconButton>
+                    </span>
                   </td>
                 </tr>
               ))}

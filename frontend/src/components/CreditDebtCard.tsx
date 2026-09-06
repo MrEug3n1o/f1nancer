@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { DatePicker } from "./DatePicker";
 import { IconTrash } from "./NavIcons";
-import { IconButton, Money, ProgressBar } from "./ui";
+import { IconButton, Money, ProgressBar, SegmentedControl } from "./ui";
 import { useApp } from "../context";
-import type { CreditDebt } from "../types";
+import type { CreditDebt, MoneyLocation } from "../types";
 import { centsToDollarsInput, dollarsToCents, todayISO } from "../utils";
 
 function formatDisplayDate(iso: string, locale?: string): string {
@@ -54,13 +54,20 @@ export function CreditDebtCard({
   onDelete,
 }: {
   item: CreditDebt;
-  onPay: (id: number, amountCents: number, date: string, note: string) => Promise<void>;
+  onPay: (
+    id: number,
+    amountCents: number,
+    date: string,
+    note: string,
+    moneyLocation: MoneyLocation,
+  ) => Promise<void>;
   onDelete: (id: number) => void;
 }) {
   const { locale } = useApp();
   const [amount, setAmount] = useState("");
   const [payDate, setPayDate] = useState(todayISO());
   const [note, setNote] = useState("");
+  const [moneyLocation, setMoneyLocation] = useState<MoneyLocation>("card");
   const [saving, setSaving] = useState(false);
   const isCredit = item.direction === "credit";
   const owed = item.principal_cents + item.accrued_interest_cents;
@@ -69,10 +76,11 @@ export function CreditDebtCard({
     e.preventDefault();
     setSaving(true);
     try {
-      await onPay(item.id, dollarsToCents(amount), payDate, note.trim());
+      await onPay(item.id, dollarsToCents(amount), payDate, note.trim(), moneyLocation);
       setAmount("");
       setNote("");
       setPayDate(todayISO());
+      setMoneyLocation("card");
     } finally {
       setSaving(false);
     }
@@ -82,10 +90,11 @@ export function CreditDebtCard({
     if (item.remaining_cents <= 0) return;
     setSaving(true);
     try {
-      await onPay(item.id, item.remaining_cents, todayISO(), "");
+      await onPay(item.id, item.remaining_cents, todayISO(), "", moneyLocation);
       setAmount("");
       setNote("");
       setPayDate(todayISO());
+      setMoneyLocation("card");
     } finally {
       setSaving(false);
     }
@@ -194,6 +203,17 @@ export function CreditDebtCard({
               disabled={saving}
             />
           </label>
+          <div className="span-2">
+            <SegmentedControl
+              ariaLabel="Cash or card"
+              value={moneyLocation}
+              onChange={setMoneyLocation}
+              options={[
+                { value: "cash", label: "Cash" },
+                { value: "card", label: "Card" },
+              ]}
+            />
+          </div>
           <label>
             Note
             <input

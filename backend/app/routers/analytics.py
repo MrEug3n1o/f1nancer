@@ -28,6 +28,9 @@ from app.schemas import (
     CurrencyOverview,
     DepositSummaryItem,
     GoalProgress,
+    MoneyLocationCurrencyOverview,
+    MoneyLocationOverview,
+    MoneyLocationSplit,
     MonthOverview,
     PocketOverview,
     TrendPoint,
@@ -43,53 +46,101 @@ def _month_bounds(month: str) -> tuple[date, date]:
     return start, end
 
 
+def _sum_by_currency_location(
+    db: Session,
+    *,
+    txn_type: str | None = None,
+    deposits: bool = False,
+    start: date | None = None,
+    end: date | None = None,
+) -> dict[tuple[str, str], int]:
+    """Map (currency_code, money_location) -> total cents."""
+    if deposits:
+        q = db.query(
+            Deposit.currency_code,
+            Deposit.money_location,
+            func.coalesce(func.sum(Deposit.principal_cents), 0).label("total"),
+        ).filter(Deposit.status != DepositStatus.cancelled.value)
+        if start is not None:
+            q = q.filter(Deposit.start_date >= start)
+        if end is not None:
+            q = q.filter(Deposit.start_date <= end)
+        rows = q.group_by(Deposit.currency_code, Deposit.money_location).all()
+    else:
+        q = db.query(
+            Transaction.currency_code,
+            Transaction.money_location,
+            func.coalesce(func.sum(Transaction.amount), 0).label("total"),
+        )
+        if txn_type is not None:
+            q = q.filter(Transaction.type == txn_type)
+        if start is not None:
+            q = q.filter(Transaction.date >= start)
+        if end is not None:
+            q = q.filter(Transaction.date <= end)
+        rows = q.group_by(Transaction.currency_code, Transaction.money_location).all()
+
+    return {(r.currency_code, r.money_location): int(r.total) for r in rows}
+
+
 def _currency_net_overviews(
     db: Session,
     start: date | None = None,
     end: date | None = None,
 ) -> list[CurrencyOverview]:
-    income_q = db.query(
-        Transaction.currency_code,
-        func.coalesce(func.sum(Transaction.amount), 0).label("total"),
-    ).filter(Transaction.type == "income")
-    expense_q = db.query(
-        Transaction.currency_code,
-        func.coalesce(func.sum(Transaction.amount), 0).label("total"),
-    ).filter(Transaction.type == "expense")
-    deposited_q = db.query(
-        Deposit.currency_code,
-        func.coalesce(func.sum(Deposit.principal_cents), 0).label("total"),
-    ).filter(Deposit.status != DepositStatus.cancelled.value)
+    income_map = _sum_by_currency_location(
+        db, txn_type="income", start=start, end=end
+    )
+    expense_map = _sum_by_currency_location(
+        db, txn_type="expense", start=start, end=end
+    )
+    deposited_map = _sum_by_currency_location(
+        db, deposits=True, start=start, end=end
+    )
 
-    if start is not None:
-        income_q = income_q.filter(Transaction.date >= start)
-        expense_q = expense_q.filter(Transaction.date >= start)
-        deposited_q = deposited_q.filter(Deposit.start_date >= start)
-    if end is not None:
-        income_q = income_q.filter(Transaction.date <= end)
-        expense_q = expense_q.filter(Transaction.date <= end)
-        deposited_q = deposited_q.filter(Deposit.start_date <= end)
-
-    income_rows = income_q.group_by(Transaction.currency_code).all()
-    expense_rows = expense_q.group_by(Transaction.currency_code).all()
-    deposited_rows = deposited_q.group_by(Deposit.currency_code).all()
-
-    income_map = {r.currency_code: int(r.total) for r in income_rows}
-    expense_map = {r.currency_code: int(r.total) for r in expense_rows}
-    deposited_map = {r.currency_code: int(r.total) for r in deposited_rows}
-    codes = sorted(set(income_map) | set(expense_map) | set(deposited_map))
+    codes = sorted(
+        {c for c, _ in income_map}
+        | {c for c, _ in expense_map}
+        | {c for c, _ in deposited_map}
+    )
 
     currencies = []
     for code in codes:
-        income = income_map.get(code, 0)
-        expense = expense_map.get(code, 0)
-        deposited = deposited_map.get(code, 0)
+        cash_income = income_map.get((code, "cash"), 0)
+        card_income = income_map.get((code, "card"), 0)
+        cash_expense = expense_map.get((code, "cash"), 0)
+        card_expense = expense_map.get((code, "card"), 0)
+        cash_deposited = deposited_map.get((code, "cash"), 0)
+        card_deposited = deposited_map.get((code, "card"), 0)
+        # Treat unknown locations as card for safety
+        other_income = sum(
+            v for (c, loc), v in income_map.items() if c == code and loc not in ("cash", "card")
+        )
+        other_expense = sum(
+            v for (c, loc), v in expense_map.items() if c == code and loc not in ("cash", "card")
+        )
+        other_deposited = sum(
+            v
+            for (c, loc), v in deposited_map.items()
+            if c == code and loc not in ("cash", "card")
+        )
+        card_income += other_income
+        card_expense += other_expense
+        card_deposited += other_deposited
+
+        cash_net = cash_income - cash_expense - cash_deposited
+        card_net = card_income - card_expense - card_deposited
+        income = cash_income + card_income
+        expense = cash_expense + card_expense
+        deposited = cash_deposited + card_deposited
         currencies.append(
             CurrencyOverview(
                 currency_code=code,
                 income_cents=income,
                 expense_cents=expense,
                 net_cents=income - expense - deposited,
+                cash_net_cents=cash_net,
+                card_net_cents=card_net,
             )
         )
     return currencies
@@ -108,6 +159,49 @@ def month_overview(
 @router.get("/pocket", response_model=PocketOverview)
 def pocket_overview(db: Session = Depends(get_db)):
     return PocketOverview(currencies=_currency_net_overviews(db))
+
+
+@router.get("/money-location-overview", response_model=MoneyLocationOverview)
+def money_location_overview(
+    month: str = Query(pattern=r"^\d{4}-\d{2}$"),
+    db: Session = Depends(get_db),
+):
+    start, end = _month_bounds(month)
+    income_map = _sum_by_currency_location(
+        db, txn_type="income", start=start, end=end
+    )
+    expense_map = _sum_by_currency_location(
+        db, txn_type="expense", start=start, end=end
+    )
+    codes = sorted(
+        {c for c, _ in income_map} | {c for c, _ in expense_map}
+    )
+    currencies: list[MoneyLocationCurrencyOverview] = []
+    for code in codes:
+        currencies.append(
+            MoneyLocationCurrencyOverview(
+                currency_code=code,
+                cash=MoneyLocationSplit(
+                    income_cents=income_map.get((code, "cash"), 0),
+                    expense_cents=expense_map.get((code, "cash"), 0),
+                ),
+                card=MoneyLocationSplit(
+                    income_cents=income_map.get((code, "card"), 0)
+                    + sum(
+                        v
+                        for (c, loc), v in income_map.items()
+                        if c == code and loc not in ("cash", "card")
+                    ),
+                    expense_cents=expense_map.get((code, "card"), 0)
+                    + sum(
+                        v
+                        for (c, loc), v in expense_map.items()
+                        if c == code and loc not in ("cash", "card")
+                    ),
+                ),
+            )
+        )
+    return MoneyLocationOverview(month=month, currencies=currencies)
 
 
 @router.get("/spend-by-category", response_model=list[CategorySpend])

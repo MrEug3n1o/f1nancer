@@ -6,6 +6,7 @@ export type DepositStatus = "active" | "matured" | "returned" | "cancelled";
 export type CreditDebtDirection = "credit" | "debt";
 export type CreditDebtSource = "bank" | "informal";
 export type CreditDebtStatus = "active" | "paid" | "cancelled";
+export type MoneyLocation = "cash" | "card";
 export type ThemeMode = "light" | "dark" | "system";
 
 export interface Category {
@@ -33,6 +34,7 @@ export interface Transaction {
   date: string;
   type: CategoryType;
   category_id: number;
+  money_location: MoneyLocation;
   note: string | null;
   recurring_id: number | null;
   goal_id?: number | null;
@@ -72,6 +74,7 @@ export interface Deposit {
   currency_code: string;
   start_date: string;
   end_date: string;
+  money_location: MoneyLocation;
   annual_rate_bps: number | null;
   counterparty: string | null;
   note: string | null;
@@ -130,6 +133,7 @@ export interface RecurringRule {
   cadence: Cadence;
   billing_day: number;
   next_run_date: string;
+  money_location: MoneyLocation;
   note: string | null;
   active: boolean;
   created_at: string;
@@ -157,6 +161,8 @@ export interface CurrencyOverview {
   income_cents: number;
   expense_cents: number;
   net_cents: number;
+  cash_net_cents?: number;
+  card_net_cents?: number;
 }
 
 export interface MonthOverview {
@@ -166,6 +172,22 @@ export interface MonthOverview {
 
 export interface PocketOverview {
   currencies: CurrencyOverview[];
+}
+
+export interface MoneyLocationSplit {
+  income_cents: number;
+  expense_cents: number;
+}
+
+export interface MoneyLocationCurrencyOverview {
+  currency_code: string;
+  cash: MoneyLocationSplit;
+  card: MoneyLocationSplit;
+}
+
+export interface MoneyLocationOverview {
+  month: string;
+  currencies: MoneyLocationCurrencyOverview[];
 }
 
 export interface CategorySpend {
@@ -203,6 +225,7 @@ export interface CurrencyMonthSplit {
 export const DASHBOARD_WIDGET_OPTIONS = [
   { id: "pocket", label: "My pocket" },
   { id: "overview", label: "Month overview" },
+  { id: "money_location", label: "Cash & card flow" },
   { id: "spend_by_category", label: "Spend by category" },
   { id: "budgets", label: "Budget progress" },
   { id: "category_table", label: "Category breakdown table" },
@@ -216,6 +239,7 @@ export type DashboardWidgetId = (typeof DASHBOARD_WIDGET_OPTIONS)[number]["id"];
 export const DEFAULT_WIDGET_VIEWS: Record<DashboardWidgetId, string> = {
   pocket: "hero",
   overview: "cards",
+  money_location: "cards",
   spend_by_category: "donut",
   budgets: "bars",
   category_table: "table",
@@ -240,6 +264,12 @@ export const WIDGET_VIEW_OPTIONS: Record<
     { id: "donut", label: "Donut chart" },
     { id: "radial", label: "Radial bars" },
     { id: "treemap", label: "Treemap" },
+  ],
+  money_location: [
+    { id: "cards", label: "Stat cards" },
+    { id: "bar", label: "Vertical bars" },
+    { id: "horizontal_bar", label: "Horizontal bars" },
+    { id: "stacked", label: "Stacked bars" },
   ],
   spend_by_category: [
     { id: "donut", label: "Donut chart" },
@@ -316,7 +346,8 @@ export function resolveWidgetView(
 
 export const DEFAULT_WIDGET_LAYOUT: DashboardWidgetLayoutItem[] = [
   { id: "pocket", span: 2, col: 0 },
-  { id: "overview", span: 2, col: 0 },
+  { id: "overview", span: 1, col: 0 },
+  { id: "money_location", span: 1, col: 1 },
   { id: "spend_by_category", span: 1, col: 0 },
   { id: "budgets", span: 1, col: 1 },
   { id: "category_table", span: 2, col: 0 },

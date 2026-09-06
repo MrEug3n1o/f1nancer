@@ -53,6 +53,7 @@ def process_recurring_rules(db: Session, today: date | None = None) -> int:
                     category_id=rule.category_id,
                     note=rule.note,
                     recurring_id=rule.id,
+                    money_location=rule.money_location,
                 )
             )
             created += 1

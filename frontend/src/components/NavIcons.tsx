@@ -78,8 +78,10 @@ export function IconScale({ className }: IconProps) {
 export function IconRefresh({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 18 18" aria-hidden>
-      <path d="M14.5 9a5.5 5.5 0 1 1-1.4-3.7" {...stroke} />
-      <polyline points="14.5 3.5 14.5 7.2 10.8 7.2" {...stroke} />
+      <path d="M14 6.4A5.4 5.4 0 0 0 4.6 7.6" {...stroke} />
+      <polyline points="14 3.4 14 6.4 11 6.4" {...stroke} />
+      <path d="M4 11.6A5.4 5.4 0 0 0 13.4 10.4" {...stroke} />
+      <polyline points="4 14.6 4 11.6 7 11.6" {...stroke} />
     </svg>
   );
 }

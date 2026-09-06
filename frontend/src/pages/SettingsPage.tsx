@@ -1,11 +1,18 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { api } from "../api";
 import { AppUpdatePanel } from "../components/AppUpdatePanel";
 import { IconPencil, IconTrash } from "../components/NavIcons";
 import { PillSelect } from "../components/PillSelect";
 import { ErrorBanner, IconButton, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
-import { ISO_CURRENCY_CATALOG } from "../currencyCatalog";
+import { ISO_CURRENCY_CATALOG, POPULAR_CURRENCY_CODES } from "../currencyCatalog";
 import type {
   Category,
   CategoryType,
@@ -24,15 +31,15 @@ export function SettingsPage() {
 
   const [theme, setTheme] = useState<ThemeMode>("system");
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
-  const [addCode, setAddCode] = useState("");
   const [catalogFilter, setCatalogFilter] = useState("");
+  const [addingCode, setAddingCode] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [catName, setCatName] = useState("");
   const [catType, setCatType] = useState<CategoryType>("expense");
   const [catColor, setCatColor] = useState("#5B8C5A");
   const [editingCatId, setEditingCatId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const currencySearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!settings) return;
@@ -52,31 +59,41 @@ export function SettingsPage() {
     [currencies],
   );
 
-  const addable = useMemo(() => {
-    const q = catalogFilter.trim().toLowerCase();
-    return ISO_CURRENCY_CATALOG.filter((c) => {
-      if (enabledCodes.has(c.code)) return false;
-      if (!q) return true;
-      return (
-        c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
-      );
-    }).slice(0, 80);
-  }, [enabledCodes, catalogFilter]);
+  const catalogQuery = catalogFilter.trim().toLowerCase();
 
-  async function savePrefs(e: FormEvent) {
-    e.preventDefault();
+  const addable = useMemo(() => {
+    if (catalogQuery) {
+      return ISO_CURRENCY_CATALOG.filter((c) => {
+        if (enabledCodes.has(c.code)) return false;
+        return (
+          c.code.toLowerCase().includes(catalogQuery) ||
+          c.name.toLowerCase().includes(catalogQuery)
+        );
+      }).slice(0, 40);
+    }
+
+    const byCode = new Map(ISO_CURRENCY_CATALOG.map((c) => [c.code, c]));
+    return POPULAR_CURRENCY_CODES.filter((code) => !enabledCodes.has(code))
+      .map((code) => byCode.get(code))
+      .filter((c): c is { code: string; name: string } => Boolean(c))
+      .slice(0, 15);
+  }, [enabledCodes, catalogQuery]);
+
+  async function changeTheme(next: ThemeMode) {
+    const previous = theme;
+    setTheme(next);
+    applyTheme(next);
     setError(null);
-    setSaved(false);
     try {
-      const updated = await api.patch<Settings>("/settings", {
-        theme,
+      await api.patch<Settings>("/settings", {
+        theme: next,
         locale: "en-US",
       });
-      applyTheme(updated.theme);
       await refreshSettings();
-      setSaved(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
+      setTheme(previous);
+      applyTheme(previous);
+      setError(err instanceof Error ? err.message : "Could not update theme");
     }
   }
 
@@ -95,20 +112,29 @@ export function SettingsPage() {
     }
   }
 
-  async function addCurrency(e: FormEvent) {
-    e.preventDefault();
+  async function addCurrency(code: string) {
+    const next = code.trim().toUpperCase();
+    if (!next || addingCode) return;
     setError(null);
+    setAddingCode(next);
     try {
-      const code = (addCode || "").trim().toUpperCase();
-      if (!code) throw new Error("Select a currency to add");
-      await api.post("/currencies", { code });
-      setAddCode("");
+      await api.post("/currencies", { code: next });
       setCatalogFilter("");
       await refreshCurrencies();
       await refreshSettings();
+      currencySearchRef.current?.focus();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add currency");
+    } finally {
+      setAddingCode(null);
     }
+  }
+
+  function onCurrencySearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const top = addable[0];
+    if (top) void addCurrency(top.code);
   }
 
   async function removeCurrency(code: string) {
@@ -175,6 +201,21 @@ export function SettingsPage() {
     <div className="stack">
       <ErrorBanner message={error} />
 
+      <section className="section settings-theme-bar">
+        <span className="settings-theme-label">Theme</span>
+        <SegmentedControl
+          compact
+          ariaLabel="Theme"
+          value={theme}
+          onChange={(next) => void changeTheme(next)}
+          options={[
+            { value: "system", label: "System" },
+            { value: "light", label: "Light" },
+            { value: "dark", label: "Dark" },
+          ]}
+        />
+      </section>
+
       <section className="section txn-composer">
         <div className="txn-composer-head">
           <div>
@@ -226,71 +267,56 @@ export function SettingsPage() {
             </li>
           ))}
         </ul>
-        <form className="txn-form" onSubmit={addCurrency}>
-          <label>
-            Search catalog
-            <input
-              value={catalogFilter}
-              onChange={(e) => setCatalogFilter(e.target.value)}
-              placeholder="Euro, UAH, yen…"
-            />
-          </label>
-          <label>
+        <div className="currency-add">
+          <label className="currency-add-label" htmlFor="currency-search">
             Add currency
-            <PillSelect
-              className="pill-select-field wide"
-              align="left"
-              ariaLabel="Add currency"
-              value={addCode}
-              onChange={setAddCode}
-              options={[
-                {
-                  value: "",
-                  label: addable.length ? "Select…" : "No matches",
-                },
-                ...addable.map((c) => ({
-                  value: c.code,
-                  label: `${c.code} — ${c.name}`,
-                })),
-              ]}
-            />
           </label>
-          <div className="form-actions txn-actions">
-            <button type="submit" className="btn primary txn-submit" disabled={!addCode}>
-              Add
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section className="section txn-composer">
-        <div className="txn-composer-head">
-          <h2>Preferences</h2>
+          <input
+            id="currency-search"
+            ref={currencySearchRef}
+            value={catalogFilter}
+            onChange={(e) => setCatalogFilter(e.target.value)}
+            onKeyDown={onCurrencySearchKeyDown}
+            placeholder="Search by name or code…"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <ul className="currency-picker" role="listbox" aria-label="Currency catalog">
+            {addable.map((c) => (
+              <li key={c.code}>
+                <button
+                  type="button"
+                  className="currency-picker-item"
+                  role="option"
+                  disabled={addingCode === c.code}
+                  onClick={() => void addCurrency(c.code)}
+                >
+                  <span>
+                    <strong>{c.code}</strong>
+                    <span className="muted"> — {c.name}</span>
+                  </span>
+                  <span className="currency-picker-action">
+                    {addingCode === c.code ? "Adding…" : "Add"}
+                  </span>
+                </button>
+              </li>
+            ))}
+            {!addable.length ? (
+              <li className="currency-picker-empty muted">
+                {catalogQuery
+                  ? "No matching currencies"
+                  : "All catalog currencies are already enabled"}
+              </li>
+            ) : null}
+          </ul>
+          {addable.length ? (
+            <p className="muted small currency-add-hint">
+              {catalogQuery
+                ? `${addable.length} match${addable.length === 1 ? "" : "es"} — press Enter to add the first.`
+                : "Popular currencies — type a name or code to find others. Press Enter to add the first match."}
+            </p>
+          ) : null}
         </div>
-        <form className="txn-form" onSubmit={savePrefs}>
-          <div className="txn-goal-field">
-            <span>Theme</span>
-            <SegmentedControl
-              value={theme}
-              onChange={(next) => {
-                setTheme(next);
-                applyTheme(next);
-              }}
-              options={[
-                { value: "system", label: "System" },
-                { value: "light", label: "Light" },
-                { value: "dark", label: "Dark" },
-              ]}
-            />
-          </div>
-
-          <div className="form-actions txn-actions">
-            <button type="submit" className="btn primary txn-submit">
-              Save preferences
-            </button>
-            {saved ? <span className="success-text">Saved</span> : null}
-          </div>
-        </form>
       </section>
 
       <section className={`section txn-composer txn-${catType}${editingCatId ? " is-editing" : ""}`}>

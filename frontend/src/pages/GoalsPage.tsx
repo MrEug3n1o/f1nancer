@@ -3,10 +3,10 @@ import { api } from "../api";
 import { DatePicker } from "../components/DatePicker";
 import { IconPencil, IconTrash } from "../components/NavIcons";
 import { PillSelect } from "../components/PillSelect";
-import { EmptyState, ErrorBanner, IconButton, Money, ProgressBar } from "../components/ui";
+import { EmptyState, ErrorBanner, IconButton, Money, ProgressBar, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
 import { usePageComposer } from "../hooks/usePageComposer";
-import type { Category, Goal, Transaction } from "../types";
+import type { Category, Goal, MoneyLocation, Transaction } from "../types";
 import { centsToDollarsInput, dollarsToCents, todayISO } from "../utils";
 
 type TxnDraft = {
@@ -14,6 +14,7 @@ type TxnDraft = {
   amount: string;
   date: string;
   note: string;
+  money_location: MoneyLocation;
 };
 
 function emptyDraft(): TxnDraft {
@@ -22,6 +23,7 @@ function emptyDraft(): TxnDraft {
     amount: "",
     date: todayISO(),
     note: "",
+    money_location: "card",
   };
 }
 
@@ -128,6 +130,7 @@ export function GoalsPage() {
       amount: centsToDollarsInput(txn.amount),
       date: txn.date,
       note: txn.note ?? "",
+      money_location: txn.money_location ?? "card",
     });
   }
 
@@ -152,6 +155,7 @@ export function GoalsPage() {
           type: "expense",
           currency_code: goal.currency_code,
           goal_id: goal.id,
+          money_location: draft.money_location,
         });
       } else {
         await api.post(`/goals/${goal.id}/contribute`, {
@@ -159,6 +163,7 @@ export function GoalsPage() {
           date: draft.date,
           category_id: goalsCategoryId,
           note: draft.note.trim() || null,
+          money_location: draft.money_location,
         });
       }
       resetTxnForm(goal.id);
@@ -332,6 +337,7 @@ export function GoalsPage() {
                       <thead>
                         <tr>
                           <th>Date</th>
+                          <th>From</th>
                           <th>Category</th>
                           <th>Note</th>
                           <th className="num">Amount</th>
@@ -342,6 +348,9 @@ export function GoalsPage() {
                         {txns.map((txn) => (
                           <tr key={txn.id}>
                             <td>{txn.date}</td>
+                            <td className="muted">
+                              {txn.money_location === "cash" ? "Cash" : "Card"}
+                            </td>
                             <td>
                               <span
                                 className="swatch inline"
@@ -402,6 +411,19 @@ export function GoalsPage() {
                           onChange={(date) => setDraft(g.id, { date })}
                         />
                       </label>
+                      <div className="span-2">
+                        <SegmentedControl
+                          ariaLabel="Cash or card"
+                          value={draft.money_location}
+                          onChange={(money_location) =>
+                            setDraft(g.id, { money_location })
+                          }
+                          options={[
+                            { value: "cash", label: "Cash" },
+                            { value: "card", label: "Card" },
+                          ]}
+                        />
+                      </div>
                       <label>
                         Note
                         <input

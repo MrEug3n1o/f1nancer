@@ -7,7 +7,7 @@ import { PillSelect } from "../components/PillSelect";
 import { EmptyState, ErrorBanner, IconButton, Money, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
 import { usePageComposer } from "../hooks/usePageComposer";
-import type { Category, CategoryType, Goal, Transaction } from "../types";
+import type { Category, CategoryType, Goal, MoneyLocation, Transaction } from "../types";
 import { centsToDollarsInput, dollarsToCents, shiftDateISO, todayISO } from "../utils";
 
 export function TransactionsPage() {
@@ -22,6 +22,7 @@ export function TransactionsPage() {
     currency_code: defaultCurrency,
     date: todayISO(),
     type: "expense" as CategoryType,
+    money_location: "card" as MoneyLocation,
     category_id: "",
     note: "",
     goal_id: "",
@@ -45,6 +46,7 @@ export function TransactionsPage() {
       currency_code: defaultCurrency,
       date: todayISO(),
       type: "expense",
+      money_location: "card",
       category_id: "",
       note: "",
       goal_id: "",
@@ -119,6 +121,7 @@ export function TransactionsPage() {
       currency_code: txn.currency_code,
       date: txn.date,
       type: txn.type,
+      money_location: txn.money_location ?? "card",
       category_id: String(txn.category_id),
       note: txn.note ?? "",
       goal_id: txn.goal_id ? String(txn.goal_id) : "",
@@ -138,6 +141,7 @@ export function TransactionsPage() {
         currency_code: form.currency_code,
         date: form.date,
         type: form.type,
+        money_location: form.money_location,
         category_id: Number(form.category_id),
         note: form.note.trim() || null,
         goal_id:
@@ -199,6 +203,17 @@ export function TransactionsPage() {
           </div>
 
           <form className="txn-form" onSubmit={onSubmit}>
+            <SegmentedControl
+              ariaLabel="Cash or card"
+              value={form.money_location}
+              onChange={(money_location) =>
+                setForm((f) => ({ ...f, money_location }))
+              }
+              options={[
+                { value: "cash", label: "Cash" },
+                { value: "card", label: "Card" },
+              ]}
+            />
             <div className="txn-amount-block">
               <div className="txn-amount-row">
                 <span className="txn-amount-sign" aria-hidden>
@@ -396,6 +411,7 @@ export function TransactionsPage() {
               <tr>
                 <th>Date</th>
                 <th>Category</th>
+                <th>From</th>
                 <th>Goal</th>
                 <th>Note</th>
                 <th className="num">Amount</th>
@@ -414,6 +430,9 @@ export function TransactionsPage() {
                     {txn.category?.name ?? "—"}
                   </td>
                   <td className="muted">
+                    {txn.money_location === "cash" ? "Cash" : "Card"}
+                  </td>
+                  <td className="muted">
                     {txn.goal_id ? goalNameById.get(txn.goal_id) ?? "—" : "—"}
                   </td>
                   <td className="muted">{txn.note ?? "—"}</td>
@@ -422,16 +441,18 @@ export function TransactionsPage() {
                     <Money cents={txn.amount} currency={txn.currency_code} />
                   </td>
                   <td className="actions">
-                    <IconButton label="Edit" edit onClick={() => startEdit(txn)}>
-                      <IconPencil className="btn-icon" />
-                    </IconButton>
-                    <IconButton
-                      label="Delete"
-                      danger
-                      onClick={() => void onDelete(txn.id)}
-                    >
-                      <IconTrash className="btn-icon" />
-                    </IconButton>
+                    <span className="row-actions">
+                      <IconButton label="Edit" edit onClick={() => startEdit(txn)}>
+                        <IconPencil className="btn-icon" />
+                      </IconButton>
+                      <IconButton
+                        label="Delete"
+                        danger
+                        onClick={() => void onDelete(txn.id)}
+                      >
+                        <IconTrash className="btn-icon" />
+                      </IconButton>
+                    </span>
                   </td>
                 </tr>
               ))}

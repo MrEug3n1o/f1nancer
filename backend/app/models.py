@@ -61,13 +61,19 @@ class CreditDebtStatus(str, Enum):
     cancelled = "cancelled"
 
 
+class MoneyLocation(str, Enum):
+    cash = "cash"
+    card = "card"
+
+
 DEFAULT_DASHBOARD_WIDGETS = (
-    '["pocket","overview","spend_by_category","budgets","goals","deposits","credits_debts"]'
+    '["pocket","overview","money_location","spend_by_category","budgets","goals","deposits","credits_debts"]'
 )
 DEFAULT_STATS_CHARTS = '["trends","spend_by_category","by_currency"]'
 DEFAULT_DASHBOARD_WIDGET_VIEWS = "{}"
 DEFAULT_DASHBOARD_WIDGET_LAYOUT = (
-    '[{"id":"pocket","span":2,"col":0},{"id":"overview","span":2,"col":0},'
+    '[{"id":"pocket","span":2,"col":0},{"id":"overview","span":1,"col":0},'
+    '{"id":"money_location","span":1,"col":1},'
     '{"id":"spend_by_category","span":1,"col":0},{"id":"budgets","span":1,"col":1},'
     '{"id":"category_table","span":2,"col":0},{"id":"goals","span":2,"col":0},'
     '{"id":"deposits","span":2,"col":0},{"id":"credits_debts","span":2,"col":0}]'
@@ -119,6 +125,9 @@ class Transaction(Base):
     )
     credit_debt_id: Mapped[int | None] = mapped_column(
         ForeignKey("credit_debts.id", ondelete="SET NULL"), nullable=True
+    )
+    money_location: Mapped[str] = mapped_column(
+        String(10), nullable=False, default=MoneyLocation.card.value
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
@@ -195,6 +204,9 @@ class Deposit(Base):
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=DepositStatus.active.value
     )
+    money_location: Mapped[str] = mapped_column(
+        String(10), nullable=False, default=MoneyLocation.card.value
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
@@ -243,6 +255,9 @@ class RecurringRule(Base):
     next_run_date: Mapped[date] = mapped_column(Date, nullable=False)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    money_location: Mapped[str] = mapped_column(
+        String(10), nullable=False, default=MoneyLocation.card.value
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )

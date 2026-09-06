@@ -20,6 +20,7 @@ import type {
   CurrencyOverview,
   Deposit,
   GoalProgress,
+  MoneyLocationOverview,
   MonthOverview,
   PocketOverview,
 } from "../types";
@@ -983,9 +984,125 @@ export function PocketView({ pocket }: { pocket: PocketOverview }) {
             >
               <Money cents={c.net_cents} currency={c.currency_code} />
             </p>
+            <div className="pocket-card-split">
+              <div className="pocket-split-item">
+                <span className="stat-label">Cash</span>
+                <span
+                  className={`pocket-split-value${
+                    (c.cash_net_cents ?? 0) >= 0 ? "" : " negative"
+                  }`}
+                >
+                  <Money cents={c.cash_net_cents ?? 0} currency={c.currency_code} />
+                </span>
+              </div>
+              <div className="pocket-split-item">
+                <span className="stat-label">Card</span>
+                <span
+                  className={`pocket-split-value${
+                    (c.card_net_cents ?? 0) >= 0 ? "" : " negative"
+                  }`}
+                >
+                  <Money cents={c.card_net_cents ?? 0} currency={c.currency_code} />
+                </span>
+              </div>
+            </div>
           </article>
         );
       })}
+    </div>
+  );
+}
+
+export function MoneyLocationView({
+  view,
+  overview,
+  locale,
+}: {
+  view: string;
+  overview: MoneyLocationOverview;
+  locale: string;
+}) {
+  const currency = overview.currencies[0]?.currency_code ?? "USD";
+  const chartData = overview.currencies.map((c) => ({
+    name: c.currency_code,
+    cash_income: c.cash.income_cents,
+    cash_expense: c.cash.expense_cents,
+    card_income: c.card.income_cents,
+    card_expense: c.card.expense_cents,
+  }));
+  const keys = [
+    { key: "cash_income", fill: "#2f6b4f", name: "Cash income" },
+    { key: "cash_expense", fill: "#a65d57", name: "Cash expenses" },
+    { key: "card_income", fill: "#4a8f6a", name: "Card income" },
+    { key: "card_expense", fill: "#c4a35a", name: "Card expenses" },
+  ];
+
+  if (view === "bar") {
+    return (
+      <GroupedVerticalBarChart
+        data={chartData}
+        keys={keys}
+        currency={currency}
+        locale={locale}
+      />
+    );
+  }
+
+  if (view === "horizontal_bar") {
+    return (
+      <HorizontalGroupedBarChart
+        data={chartData}
+        keys={keys}
+        currency={currency}
+        locale={locale}
+      />
+    );
+  }
+
+  if (view === "stacked") {
+    return (
+      <StackedVerticalBarChart
+        data={chartData}
+        keys={keys}
+        currency={currency}
+        locale={locale}
+      />
+    );
+  }
+
+  return (
+    <div className="currency-overview-stack">
+      {overview.currencies.map((c) => (
+        <div key={c.currency_code} className="currency-overview-block">
+          <h3 className="currency-heading">{c.currency_code}</h3>
+          <div className="stat-row money-location-stats">
+            <div className="stat">
+              <span className="stat-label">Cash income</span>
+              <span className="stat-value income">
+                <Money cents={c.cash.income_cents} currency={c.currency_code} />
+              </span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Cash expenses</span>
+              <span className="stat-value expense">
+                <Money cents={c.cash.expense_cents} currency={c.currency_code} />
+              </span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Card income</span>
+              <span className="stat-value income">
+                <Money cents={c.card.income_cents} currency={c.currency_code} />
+              </span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Card expenses</span>
+              <span className="stat-value expense">
+                <Money cents={c.card.expense_cents} currency={c.currency_code} />
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

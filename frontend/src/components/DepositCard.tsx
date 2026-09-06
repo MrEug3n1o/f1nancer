@@ -135,6 +135,9 @@ export function DepositCard({
         <div>
           <strong>{d.name}</strong>
           <span className={`badge ${d.type}`}>{d.type}</span>
+          <span className="badge">
+            {d.money_location === "cash" ? "Cash" : "Card"}
+          </span>
           <span className={`badge ${d.status}`}>{statusLabel(d.status)}</span>
         </div>
         {onDelete ? (

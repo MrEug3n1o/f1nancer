@@ -1,4 +1,34 @@
 /** ISO 4217 catalog for the add-currency picker (mirrors backend). */
+
+/** Most-used currencies for the empty-state picker (priority order). */
+export const POPULAR_CURRENCY_CODES: string[] = [
+  "USD",
+  "EUR",
+  "GBP",
+  "JPY",
+  "CHF",
+  "CAD",
+  "AUD",
+  "CNY",
+  "INR",
+  "BRL",
+  "KRW",
+  "MXN",
+  "SGD",
+  "HKD",
+  "SEK",
+  "NOK",
+  "DKK",
+  "NZD",
+  "PLN",
+  "CZK",
+  "TRY",
+  "ZAR",
+  "AED",
+  "UAH",
+  "THB",
+];
+
 export const ISO_CURRENCY_CATALOG: { code: string; name: string }[] = [
   { code: "AED", name: "UAE Dirham" },
   { code: "AFN", name: "Afghan Afghani" },

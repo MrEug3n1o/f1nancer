@@ -63,6 +63,7 @@ def _add_contribution_transaction(
     goal: Goal,
     amount: int,
     *,
+    money_location: str,
     when: date | None = None,
     category_id: int | None = None,
     note: str | None = None,
@@ -76,6 +77,7 @@ def _add_contribution_transaction(
         category_id=category.id,
         note=note,
         goal_id=goal.id,
+        money_location=money_location,
     )
     db.add(txn)
     db.flush()
@@ -176,6 +178,7 @@ def contribute_to_goal(
         db,
         goal,
         payload.amount,
+        money_location=payload.money_location,
         when=payload.date,
         category_id=payload.category_id,
         note=payload.note,

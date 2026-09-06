@@ -20,6 +20,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 VALID_DASHBOARD = {
     "pocket",
     "overview",
+    "money_location",
     "spend_by_category",
     "budgets",
     "goals",
@@ -38,6 +39,7 @@ VALID_STATS = {
 DEFAULT_WIDGET_VIEWS = {
     "pocket": "hero",
     "overview": "cards",
+    "money_location": "cards",
     "spend_by_category": "donut",
     "budgets": "bars",
     "category_table": "table",
@@ -59,6 +61,12 @@ VALID_WIDGET_VIEWS = {
         "donut",
         "radial",
         "treemap",
+    },
+    "money_location": {
+        "cards",
+        "bar",
+        "horizontal_bar",
+        "stacked",
     },
     "spend_by_category": {
         "donut",
@@ -234,6 +242,33 @@ def _to_out(settings: Settings) -> SettingsOut:
             "goals",
         }:
             widgets = [*widgets, "credits_debts"]
+    if "money_location" not in widgets:
+        without_ml = set(widgets) - {"pocket", "money_location"}
+        legacy_with_overview = {
+            "overview",
+            "spend_by_category",
+            "budgets",
+            "goals",
+            "deposits",
+            "credits_debts",
+        }
+        legacy_partial = {
+            "overview",
+            "spend_by_category",
+            "budgets",
+            "goals",
+            "deposits",
+        }
+        if without_ml == legacy_with_overview or without_ml == legacy_partial:
+            overview_idx = widgets.index("overview") if "overview" in widgets else -1
+            if overview_idx >= 0:
+                widgets = [
+                    *widgets[: overview_idx + 1],
+                    "money_location",
+                    *widgets[overview_idx + 1 :],
+                ]
+            else:
+                widgets = [*widgets, "money_location"]
     if "pocket" not in widgets:
         widgets = ["pocket", *widgets]
     merged_widgets = [

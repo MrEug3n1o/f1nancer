@@ -7,7 +7,7 @@ import { PillSelect } from "../components/PillSelect";
 import { EmptyState, ErrorBanner, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
 import { usePageComposer } from "../hooks/usePageComposer";
-import type { CreditDebt, CreditDebtDirection, Deposit } from "../types";
+import type { CreditDebt, CreditDebtDirection, Deposit, MoneyLocation } from "../types";
 import { dollarsToCents, todayISO } from "../utils";
 
 type ComposerKind = "informal" | "rental";
@@ -28,6 +28,7 @@ export function CreditsDebtsPage() {
   const [endDate, setEndDate] = useState("");
   const [counterparty, setCounterparty] = useState("");
   const [alreadyPaid, setAlreadyPaid] = useState("");
+  const [moneyLocation, setMoneyLocation] = useState<MoneyLocation>("card");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +66,7 @@ export function CreditsDebtsPage() {
     setEndDate("");
     setCounterparty("");
     setAlreadyPaid("");
+    setMoneyLocation("card");
     setNote("");
     setStartDate(todayISO());
   }
@@ -87,6 +89,7 @@ export function CreditsDebtsPage() {
           start_date: startDate,
           end_date: endDate,
           counterparty: counterparty.trim() || null,
+          money_location: moneyLocation,
           note: note.trim() || null,
         });
       } else {
@@ -98,6 +101,7 @@ export function CreditsDebtsPage() {
           currency_code: currencyCode,
           start_date: startDate,
           due_date: dueDate || null,
+          money_location: moneyLocation,
           note: note.trim() || null,
         };
         if (alreadyPaid.trim()) {
@@ -112,13 +116,20 @@ export function CreditsDebtsPage() {
     }
   }
 
-  async function onPay(id: number, amountCents: number, date: string, noteText: string) {
+  async function onPay(
+    id: number,
+    amountCents: number,
+    date: string,
+    noteText: string,
+    location: MoneyLocation,
+  ) {
     setError(null);
     try {
       await api.post(`/credits-debts/${id}/pay`, {
         amount: amountCents,
         date,
         note: noteText || null,
+        money_location: location,
       });
       await load();
     } catch (err) {
@@ -209,6 +220,15 @@ export function CreditsDebtsPage() {
             </div>
           </div>
           <form className="txn-form" onSubmit={onSubmit}>
+            <SegmentedControl
+              ariaLabel="Cash or card"
+              value={moneyLocation}
+              onChange={setMoneyLocation}
+              options={[
+                { value: "cash", label: "Cash" },
+                { value: "card", label: "Card" },
+              ]}
+            />
             <div className="txn-amount-block">
               <div className="txn-amount-row">
                 {!isRental ? (

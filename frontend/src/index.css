@@ -479,6 +479,19 @@ code {
   box-shadow: var(--shadow);
 }
 
+.settings-theme-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.85rem;
+}
+
+.settings-theme-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
 .section h2 {
   margin: 0;
   font-size: 1.2rem;
@@ -491,6 +504,9 @@ code {
 .widget-section {
   min-width: 0;
   overflow: visible;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
 }
 
 .widget-section:has(.widget-menu-panel) {
@@ -499,6 +515,11 @@ code {
 
 .widget-body {
   min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
   container-type: inline-size;
 }
 
@@ -999,6 +1020,7 @@ code {
   border-radius: 12px;
   background: var(--stat-bg);
   border: 1px solid var(--line);
+  text-align: center;
 }
 
 .stat-label {
@@ -1057,6 +1079,7 @@ code {
   position: relative;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 0.85rem;
   padding: 1.25rem 1.35rem;
   border-radius: var(--radius);
@@ -1064,6 +1087,7 @@ code {
   background: var(--stat-bg);
   box-shadow: var(--shadow);
   overflow: hidden;
+  text-align: center;
 }
 
 .pocket-card.is-negative {
@@ -1071,7 +1095,7 @@ code {
 }
 
 .pocket-card-currency {
-  align-self: flex-start;
+  align-self: center;
   font-size: 0.72rem;
   font-weight: 650;
   letter-spacing: 0.1em;
@@ -1095,6 +1119,38 @@ code {
 
 .pocket-card-amount.negative {
   color: var(--expense);
+}
+
+.pocket-card-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.15rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.pocket-split-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.pocket-split-value {
+  font-size: 1.05rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.pocket-split-value.negative {
+  color: var(--expense);
+}
+
+.money-location-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .muted {
@@ -2187,10 +2243,36 @@ textarea:focus {
   white-space: nowrap;
 }
 
-.table .actions {
+.table td.actions {
+  width: 1%;
+  padding-left: 1.5rem;
+  padding-right: 0.1rem;
   text-align: right;
   white-space: nowrap;
+  vertical-align: middle;
+  /* Keep table-cell layout so the column hugs the row's right edge. */
+  display: table-cell;
+}
+
+.table .row-actions {
+  display: inline-flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 0.3rem;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.table td.actions > .btn + .btn {
+  margin-left: 0.3rem;
+}
+
+.table .row-actions .btn:not(.icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  box-sizing: border-box;
 }
 
 .table tr.dim {
@@ -2218,8 +2300,10 @@ textarea:focus {
   list-style: none;
   padding: 0;
   margin: 0.5rem 0 0;
-  display: grid;
-  gap: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 0.85rem;
   font-size: 0.92rem;
 }
 
@@ -2412,9 +2496,13 @@ textarea:focus {
 }
 
 .goal-pies {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  align-content: center;
   gap: 1.25rem;
+  width: 100%;
 }
 
 .goal-pie {
@@ -2422,6 +2510,7 @@ textarea:focus {
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
+  width: 160px;
   text-align: center;
 }
 
@@ -2541,6 +2630,7 @@ textarea:focus {
 .form-grid + .currency-list,
 .txn-form + .currency-list,
 .currency-list + .txn-form,
+.currency-list + .currency-add,
 .txn-form + .category-manage-list {
   margin-top: 1rem;
 }
@@ -2549,6 +2639,75 @@ textarea:focus {
 .category-manage-list li {
   padding: 0.55rem 0;
   border-bottom: 1px solid var(--line);
+}
+
+.currency-add {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.currency-add-label {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.currency-add input {
+  width: 100%;
+}
+
+.currency-picker {
+  list-style: none;
+  margin: 0;
+  padding: 0.15rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+
+.currency-picker-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.currency-picker-item:hover,
+.currency-picker-item:focus-visible {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  outline: none;
+}
+
+.currency-picker-item:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.currency-picker-action {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.currency-picker-empty {
+  padding: 0.85rem 0.75rem;
+}
+
+.currency-add-hint {
+  margin: 0;
 }
 
 .chart-wrap.tall {

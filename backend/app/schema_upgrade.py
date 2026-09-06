@@ -457,3 +457,22 @@ def ensure_schema(engine: Engine) -> None:
                 conn.execute(
                     text("ALTER TABLE transactions ADD COLUMN credit_debt_id INTEGER")
                 )
+
+        tables_now = set(inspect(engine).get_table_names())
+        for table_name in ("transactions", "recurring_rules", "deposits"):
+            if table_name not in tables_now:
+                continue
+            cols = {c["name"] for c in inspect(engine).get_columns(table_name)}
+            if "money_location" not in cols:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE {table_name} ADD COLUMN money_location "
+                        "VARCHAR(10) NOT NULL DEFAULT 'card'"
+                    )
+                )
+                conn.execute(
+                    text(
+                        f"UPDATE {table_name} SET money_location = 'card' "
+                        "WHERE money_location IS NULL"
+                    )
+                )

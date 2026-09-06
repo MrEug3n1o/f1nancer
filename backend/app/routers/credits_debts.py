@@ -77,6 +77,7 @@ def _add_tagged_transaction(
     txn_type: str,
     category_id: int,
     *,
+    money_location: str,
     when: date | None = None,
     note: str | None = None,
 ) -> Transaction:
@@ -88,6 +89,7 @@ def _add_tagged_transaction(
         category_id=category_id,
         note=note,
         credit_debt_id=item.id,
+        money_location=money_location,
     )
     db.add(txn)
     db.flush()
@@ -149,6 +151,7 @@ def create_credit_debt(payload: CreditDebtCreate, db: Session = Depends(get_db))
         item.principal_cents,
         opening_txn_type(item.direction),
         open_cat.id,
+        money_location=payload.money_location,
         when=item.start_date,
         note=f"{verb}: {item.name}",
     )
@@ -161,6 +164,7 @@ def create_credit_debt(payload: CreditDebtCreate, db: Session = Depends(get_db))
             payload.already_paid_cents,
             payment_txn_type(item.direction),
             pay_cat.id,
+            money_location=payload.money_location,
             when=item.start_date,
             note=f"Already paid toward {item.name}",
         )
@@ -197,6 +201,7 @@ def update_credit_debt(
         data["counterparty"] = data["counterparty"].strip() or None
 
     new_status = data.pop("status", None)
+    settle_location = data.pop("money_location", None) or "card"
     for key, value in data.items():
         setattr(item, key, value)
 
@@ -217,6 +222,7 @@ def update_credit_debt(
                 remaining,
                 payment_txn_type(item.direction),
                 pay_cat.id,
+                money_location=settle_location,
                 note=f"Settled remaining on {item.name}",
             )
         item.status = CreditDebtStatus.paid.value
@@ -249,6 +255,7 @@ def pay_credit_debt(
         payload.amount,
         payment_txn_type(item.direction),
         pay_cat.id,
+        money_location=payload.money_location,
         when=payload.date,
         note=payload.note or f"Payment toward {item.name}",
     )

@@ -21,6 +21,7 @@ import {
   CreditsDebtsView,
   DepositsView,
   GoalsView,
+  MoneyLocationView,
   OverviewView,
   PocketView,
   SpendCategoryView,
@@ -41,6 +42,7 @@ import type {
   DashboardWidgetLayoutItem,
   Deposit,
   GoalProgress,
+  MoneyLocationOverview,
   MonthOverview,
   PocketOverview,
   Settings,
@@ -54,6 +56,7 @@ import {
 const DEFAULT_WIDGETS = [
   "pocket",
   "overview",
+  "money_location",
   "spend_by_category",
   "budgets",
   "goals",
@@ -64,6 +67,7 @@ const DEFAULT_WIDGETS = [
 const WIDGET_TITLES: Record<DashboardWidgetId, string> = {
   pocket: "My pocket",
   overview: "Month overview",
+  money_location: "Cash & card flow",
   spend_by_category: "Spend by category",
   budgets: "Budget progress",
   category_table: "Category breakdown",
@@ -111,6 +115,7 @@ export function DashboardPage() {
   const layout = draft?.layout ?? savedLayout;
   const [overview, setOverview] = useState<MonthOverview | null>(null);
   const [pocket, setPocket] = useState<PocketOverview | null>(null);
+  const [moneyLocation, setMoneyLocation] = useState<MoneyLocationOverview | null>(null);
   const [spend, setSpend] = useState<CategorySpend[]>([]);
   const [goals, setGoals] = useState<GoalProgress[]>([]);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
@@ -136,9 +141,12 @@ export function DashboardPage() {
       const spendUrl = spendCurrency
         ? `/analytics/spend-by-category?month=${month}&currency=${spendCurrency}`
         : `/analytics/spend-by-category?month=${month}`;
-      const [ov, pocketData, sp, gp, bu, dep, rentals, cd] = await Promise.all([
+      const [ov, pocketData, ml, sp, gp, bu, dep, rentals, cd] = await Promise.all([
         api.get<MonthOverview>(`/analytics/month-overview?month=${month}`),
         api.get<PocketOverview>("/analytics/pocket"),
+        api.get<MoneyLocationOverview>(
+          `/analytics/money-location-overview?month=${month}`,
+        ),
         api.get<CategorySpend[]>(spendUrl),
         api.get<GoalProgress[]>("/analytics/goals-progress"),
         api.get<Budget[]>(`/budgets?month=${month}`),
@@ -148,6 +156,7 @@ export function DashboardPage() {
       ]);
       setOverview(ov);
       setPocket(pocketData);
+      setMoneyLocation(ml);
       setSpend(sp);
       setGoals(gp);
       setBudgets(bu);
@@ -339,6 +348,19 @@ export function DashboardPage() {
           <OverviewView
             view={resolveWidgetView("overview", widgetViews)}
             overview={overview}
+            locale={locale}
+          />
+        );
+      case "money_location":
+        return !moneyLocation || moneyLocation.currencies.length === 0 ? (
+          <EmptyState
+            title="No cash or card flow this month"
+            hint="Tag income and expenses as cash or card to see the split."
+          />
+        ) : (
+          <MoneyLocationView
+            view={resolveWidgetView("money_location", widgetViews)}
+            overview={moneyLocation}
             locale={locale}
           />
         );

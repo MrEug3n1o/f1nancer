@@ -54,6 +54,7 @@ class TransactionCreate(BaseModel):
     date: Date
     type: Literal["income", "expense"]
     category_id: int
+    money_location: Literal["cash", "card"]
     note: str | None = None
     goal_id: int | None = None
     credit_debt_id: int | None = None
@@ -70,6 +71,7 @@ class TransactionUpdate(BaseModel):
     date: Date | None = None
     type: Literal["income", "expense"] | None = None
     category_id: int | None = None
+    money_location: Literal["cash", "card"] | None = None
     note: str | None = None
     goal_id: int | None = None
     credit_debt_id: int | None = None
@@ -89,6 +91,7 @@ class TransactionOut(BaseModel):
     date: Date
     type: str
     category_id: int
+    money_location: str
     note: str | None
     recurring_id: int | None
     goal_id: int | None = None
@@ -159,6 +162,7 @@ class GoalUpdate(BaseModel):
 
 class GoalContribute(BaseModel):
     amount: int = Field(gt=0, description="Contribution in cents")
+    money_location: Literal["cash", "card"]
     date: Date | None = None
     category_id: int | None = None
     note: str | None = None
@@ -190,6 +194,7 @@ class DepositCreate(BaseModel):
     currency_code: str = Field(min_length=3, max_length=3)
     start_date: Date
     end_date: Date
+    money_location: Literal["cash", "card"]
     annual_rate_bps: int | None = Field(default=None, ge=0)
     counterparty: str | None = Field(default=None, max_length=200)
     note: str | None = None
@@ -206,6 +211,7 @@ class DepositUpdate(BaseModel):
     currency_code: str | None = Field(default=None, min_length=3, max_length=3)
     start_date: Date | None = None
     end_date: Date | None = None
+    money_location: Literal["cash", "card"] | None = None
     annual_rate_bps: int | None = Field(default=None, ge=0)
     counterparty: str | None = Field(default=None, max_length=200)
     note: str | None = None
@@ -227,6 +233,7 @@ class DepositOut(BaseModel):
     currency_code: str
     start_date: Date
     end_date: Date
+    money_location: str
     annual_rate_bps: int | None
     counterparty: str | None
     note: str | None
@@ -253,6 +260,7 @@ class CreditDebtCreate(BaseModel):
     principal_cents: int = Field(gt=0)
     currency_code: str = Field(min_length=3, max_length=3)
     start_date: Date
+    money_location: Literal["cash", "card"]
     due_date: Date | None = None
     annual_rate_bps: int | None = Field(default=None, ge=0)
     counterparty: str | None = Field(default=None, max_length=200)
@@ -275,6 +283,7 @@ class CreditDebtUpdate(BaseModel):
     counterparty: str | None = Field(default=None, max_length=200)
     note: str | None = None
     status: Literal["active", "paid", "cancelled"] | None = None
+    money_location: Literal["cash", "card"] | None = None
 
     @field_validator("currency_code")
     @classmethod
@@ -284,6 +293,7 @@ class CreditDebtUpdate(BaseModel):
 
 class CreditDebtPay(BaseModel):
     amount: int = Field(gt=0, description="Payment in cents")
+    money_location: Literal["cash", "card"]
     date: Date | None = None
     note: str | None = None
 
@@ -326,6 +336,7 @@ class RecurringCreate(BaseModel):
     category_id: int
     type: Literal["income", "expense"]
     cadence: Literal["weekly", "monthly", "yearly"]
+    money_location: Literal["cash", "card"]
     billing_day: int = Field(default=1, ge=1, le=31)
     next_run_date: Date | None = None
     note: str | None = None
@@ -343,6 +354,7 @@ class RecurringUpdate(BaseModel):
     category_id: int | None = None
     type: Literal["income", "expense"] | None = None
     cadence: Literal["weekly", "monthly", "yearly"] | None = None
+    money_location: Literal["cash", "card"] | None = None
     billing_day: int | None = Field(default=None, ge=1, le=31)
     next_run_date: Date | None = None
     note: str | None = None
@@ -365,6 +377,7 @@ class RecurringOut(BaseModel):
     cadence: str
     billing_day: int
     next_run_date: Date
+    money_location: str
     note: str | None
     active: bool
     created_at: datetime
@@ -410,6 +423,8 @@ class CurrencyOverview(BaseModel):
     income_cents: int
     expense_cents: int
     net_cents: int
+    cash_net_cents: int = 0
+    card_net_cents: int = 0
 
 
 class MonthOverview(BaseModel):
@@ -419,6 +434,22 @@ class MonthOverview(BaseModel):
 
 class PocketOverview(BaseModel):
     currencies: list[CurrencyOverview]
+
+
+class MoneyLocationSplit(BaseModel):
+    income_cents: int
+    expense_cents: int
+
+
+class MoneyLocationCurrencyOverview(BaseModel):
+    currency_code: str
+    cash: MoneyLocationSplit
+    card: MoneyLocationSplit
+
+
+class MoneyLocationOverview(BaseModel):
+    month: str
+    currencies: list[MoneyLocationCurrencyOverview]
 
 
 class CategorySpend(BaseModel):
