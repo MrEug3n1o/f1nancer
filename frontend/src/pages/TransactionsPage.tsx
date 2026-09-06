@@ -27,7 +27,7 @@ export function TransactionsPage() {
     note: "",
     goal_id: "",
   });
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -79,7 +79,7 @@ export function TransactionsPage() {
   }, [form.currency_code, form.goal_id, form.type, goals]);
 
   const goalNameById = useMemo(() => {
-    const map = new Map<number, string>();
+    const map = new Map<string, string>();
     for (const g of goals) map.set(g.id, g.name);
     return map;
   }, [goals]);
@@ -142,10 +142,10 @@ export function TransactionsPage() {
         date: form.date,
         type: form.type,
         money_location: form.money_location,
-        category_id: Number(form.category_id),
+        category_id: form.category_id,
         note: form.note.trim() || null,
         goal_id:
-          form.type === "expense" && form.goal_id ? Number(form.goal_id) : null,
+          form.type === "expense" && form.goal_id ? form.goal_id : null,
       };
       if (!payload.category_id) {
         throw new Error("Select a category");
@@ -162,7 +162,7 @@ export function TransactionsPage() {
     }
   }
 
-  async function onDelete(id: number) {
+  async function onDelete(id: string) {
     if (!confirm("Delete this transaction?")) return;
     setError(null);
     try {

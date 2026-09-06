@@ -7,22 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from app.database import Base, SessionLocal, engine
-from app.routers import (
-    analytics,
-    budgets,
-    categories,
-    credits_debts,
-    currencies,
-    deposits,
-    goals,
-    recurring,
-    settings,
-    system,
-    transactions,
-)
+from app.routers import local_export, system
 from app.schema_upgrade import ensure_schema
 from app.seed import seed_database
-from app.services.recurring import process_recurring_rules
 from app.version import APP_VERSION
 
 
@@ -43,7 +30,6 @@ async def lifespan(_: FastAPI):
     db = SessionLocal()
     try:
         seed_database(db)
-        process_recurring_rules(db)
     finally:
         db.close()
     yield
@@ -64,17 +50,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(categories.router, prefix="/api")
-app.include_router(currencies.router, prefix="/api")
-app.include_router(transactions.router, prefix="/api")
-app.include_router(budgets.router, prefix="/api")
-app.include_router(goals.router, prefix="/api")
-app.include_router(deposits.router, prefix="/api")
-app.include_router(credits_debts.router, prefix="/api")
-app.include_router(recurring.router, prefix="/api")
-app.include_router(analytics.router, prefix="/api")
-app.include_router(settings.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
+app.include_router(local_export.router, prefix="/api")
 
 
 @app.get("/health")

@@ -44,7 +44,7 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 const fallbackSettings: Settings = {
-  id: 0,
+  id: "",
   default_currency_code: "USD",
   theme: "system",
   locale: "en-US",

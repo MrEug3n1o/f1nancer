@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "F1nancer",
+    "slug": "f1nancer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.f1nancer.mobile"
+    },
+    "android": {
+      "package": "app.f1nancer.mobile"
+    },
+    "plugins": ["@op-engineering/op-sqlite"]
+  }
+}

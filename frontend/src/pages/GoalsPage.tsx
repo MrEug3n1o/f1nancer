@@ -10,7 +10,7 @@ import type { Category, Goal, MoneyLocation, Transaction } from "../types";
 import { centsToDollarsInput, dollarsToCents, todayISO } from "../utils";
 
 type TxnDraft = {
-  editingId: number | null;
+  editingId: string | null;
   amount: string;
   date: string;
   note: string;
@@ -35,8 +35,8 @@ export function GoalsPage() {
   const [target, setTarget] = useState("");
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency);
   const [deadline, setDeadline] = useState("");
-  const [editingGoalId, setEditingGoalId] = useState<number | null>(null);
-  const [txnDrafts, setTxnDrafts] = useState<Record<number, TxnDraft>>({});
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [txnDrafts, setTxnDrafts] = useState<Record<string, TxnDraft>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -70,11 +70,11 @@ export function GoalsPage() {
   const goalsCategoryId =
     categories.find((c) => c.name === "Goals")?.id ?? categories[0]?.id;
 
-  function draftFor(goalId: number): TxnDraft {
+  function draftFor(goalId: string): TxnDraft {
     return txnDrafts[goalId] ?? emptyDraft();
   }
 
-  function setDraft(goalId: number, patch: Partial<TxnDraft>) {
+  function setDraft(goalId: string, patch: Partial<TxnDraft>) {
     setTxnDrafts((m) => {
       const current = m[goalId] ?? emptyDraft();
       return { ...m, [goalId]: { ...current, ...patch } };
@@ -134,7 +134,7 @@ export function GoalsPage() {
     });
   }
 
-  function resetTxnForm(goalId: number) {
+  function resetTxnForm(goalId: string) {
     setDraft(goalId, emptyDraft());
   }
 
@@ -173,7 +173,7 @@ export function GoalsPage() {
     }
   }
 
-  async function onDeleteTxn(goalId: number, txnId: number) {
+  async function onDeleteTxn(goalId: string, txnId: string) {
     if (!confirm("Delete this transaction?")) return;
     setError(null);
     try {
@@ -198,7 +198,7 @@ export function GoalsPage() {
     }
   }
 
-  async function onDelete(id: number) {
+  async function onDelete(id: string) {
     if (!confirm("Delete this goal? Tagged transactions stay in your history.")) return;
     setError(null);
     try {

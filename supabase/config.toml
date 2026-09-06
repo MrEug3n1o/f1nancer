@@ -1,0 +1,24 @@
+project_id = "xtqudnqthpakdaonrwir"
+
+[api]
+enabled = true
+
+[db]
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://127.0.0.1:5173", "http://localhost:8081"]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+double_confirm_changes = false
+
+[functions.auth-username]
+verify_jwt = false
+
+[functions.process-recurring]
+verify_jwt = false

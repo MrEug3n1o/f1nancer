@@ -12,4 +12,8 @@ desktop/dist/
 desktop/installed_revision.txt
 .DS_Store
 .env
+.env.local
 *.log
+mobile/.expo/
+mobile/dist/
+supabase/.temp/

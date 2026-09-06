@@ -55,13 +55,13 @@ export function CreditDebtCard({
 }: {
   item: CreditDebt;
   onPay: (
-    id: number,
+    id: string,
     amountCents: number,
     date: string,
     note: string,
     moneyLocation: MoneyLocation,
   ) => Promise<void>;
-  onDelete: (id: number) => void;
+  onDelete: (id: string) => void;
 }) {
   const { locale } = useApp();
   const [amount, setAmount] = useState("");

@@ -13,6 +13,12 @@ import { PillSelect } from "../components/PillSelect";
 import { ErrorBanner, IconButton, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
 import { ISO_CURRENCY_CATALOG, POPULAR_CURRENCY_CODES } from "../currencyCatalog";
+import {
+  cloudLooksEmpty,
+  fetchLocalExport,
+  importLocalPayload,
+} from "../data/importLocal";
+import { useAuth } from "../sync/AuthProvider";
 import type {
   Category,
   CategoryType,
@@ -28,6 +34,9 @@ export function SettingsPage() {
     refreshSettings,
     refreshCurrencies,
   } = useApp();
+  const { username, signOut } = useAuth();
+  const [importing, setImporting] = useState(false);
+  const [hasLocalExport, setHasLocalExport] = useState(false);
 
   const [theme, setTheme] = useState<ThemeMode>("system");
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
@@ -37,7 +46,7 @@ export function SettingsPage() {
   const [catName, setCatName] = useState("");
   const [catType, setCatType] = useState<CategoryType>("expense");
   const [catColor, setCatColor] = useState("#5B8C5A");
-  const [editingCatId, setEditingCatId] = useState<number | null>(null);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const currencySearchRef = useRef<HTMLInputElement>(null);
 
@@ -52,6 +61,14 @@ export function SettingsPage() {
       .get<Category[]>("/categories")
       .then(setCategories)
       .catch(() => setCategories([]));
+  }, []);
+
+  useEffect(() => {
+    void fetchLocalExport().then((payload) => {
+      setHasLocalExport(
+        Boolean(payload?.categories?.length || payload?.transactions?.length),
+      );
+    });
   }, []);
 
   const enabledCodes = useMemo(
@@ -118,7 +135,10 @@ export function SettingsPage() {
     setError(null);
     setAddingCode(next);
     try {
-      await api.post("/currencies", { code: next });
+      await api.post("/currencies", {
+        code: next,
+        name: ISO_CURRENCY_CATALOG.find((c) => c.code === next)?.name ?? next,
+      });
       setCatalogFilter("");
       await refreshCurrencies();
       await refreshSettings();
@@ -182,7 +202,7 @@ export function SettingsPage() {
     setCatColor(c.color);
   }
 
-  async function deleteCategory(id: number) {
+  async function deleteCategory(id: string) {
     if (!confirm("Delete this category?")) return;
     setError(null);
     try {
@@ -197,9 +217,65 @@ export function SettingsPage() {
     }
   }
 
+  async function importLegacyData() {
+    setError(null);
+    setImporting(true);
+    try {
+      const payload = await fetchLocalExport();
+      if (!payload) throw new Error("No local desktop database found to import");
+      if (!(await cloudLooksEmpty())) {
+        if (
+          !confirm(
+            "This account already has data. Import anyway? Duplicates may appear.",
+          )
+        ) {
+          return;
+        }
+      }
+      await importLocalPayload(payload);
+      setCategories(await api.get<Category[]>("/categories"));
+      await refreshCurrencies();
+      await refreshSettings();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="stack">
       <ErrorBanner message={error} />
+
+      <section className="section account-section">
+        <div className="account-row">
+          <div>
+            <h2>Account</h2>
+            <p className="muted account-meta">
+              Signed in as <strong>{username ?? "unknown"}</strong>
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn sign-out"
+            onClick={() => {
+              if (
+                confirm(
+                  "Sign out and clear local data on this device? Your cloud account stays intact.",
+                )
+              ) {
+                void signOut();
+              }
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+        <p className="muted small account-hint">
+          Same username works on desktop and mobile. Signing out wipes this
+          device’s local copy; last write wins if both devices edit offline.
+        </p>
+      </section>
 
       <section className="section settings-theme-bar">
         <span className="settings-theme-label">Theme</span>
@@ -396,11 +472,25 @@ export function SettingsPage() {
       <AppUpdatePanel onError={setError} />
 
       <section className="section">
-        <h2>Data</h2>
+        <h2>Data & sync</h2>
         <p className="muted">
-          Data stays on this machine in a local SQLite file. Backup by copying
-          the F1nancer database from Application Support.
+          Finance data lives in a local SQLite database on this device and syncs
+          through your F1nancer account when you are online. Signing out wipes
+          the local copy on this machine; your cloud account keeps the source of
+          truth.
         </p>
+        {hasLocalExport ? (
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={importing}
+              onClick={() => void importLegacyData()}
+            >
+              {importing ? "Importing…" : "Import old local database"}
+            </button>
+          </div>
+        ) : null}
       </section>
     </div>
   );

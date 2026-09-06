@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { AppProvider } from "./context";
+import { AuthPage } from "./pages/AuthPage";
 import { BudgetsPage } from "./pages/BudgetsPage";
 import { BankPage } from "./pages/BankPage";
 import { CreditsDebtsPage } from "./pages/CreditsDebtsPage";
@@ -9,8 +10,9 @@ import { GoalsPage } from "./pages/GoalsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SubscriptionsPage } from "./pages/SubscriptionsPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
+import { AuthProvider, useAuth } from "./sync/AuthProvider";
 
-export default function App() {
+function SignedInApp() {
   return (
     <AppProvider>
       <BrowserRouter>
@@ -31,5 +33,26 @@ export default function App() {
         </Layout>
       </BrowserRouter>
     </AppProvider>
+  );
+}
+
+function Gate() {
+  const { session, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="auth-shell">
+        <p className="muted">Loading…</p>
+      </div>
+    );
+  }
+  if (!session) return <AuthPage />;
+  return <SignedInApp />;
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   );
 }

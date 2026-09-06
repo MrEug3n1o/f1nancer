@@ -1,6 +1,16 @@
+import { handleDelete, handleGet, handlePatch, handlePost } from "./data/repo";
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+function isEnginePath(path: string): boolean {
+  return (
+    path.startsWith("/system") ||
+    path.startsWith("/local-export") ||
+    path.startsWith("/health")
+  );
+}
+
+async function engineRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
@@ -29,10 +39,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string) =>
+    isEnginePath(path) ? engineRequest<T>(path) : (handleGet(path) as Promise<T>),
   post: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: "POST", body: JSON.stringify(body) }),
+    isEnginePath(path)
+      ? engineRequest<T>(path, { method: "POST", body: JSON.stringify(body) })
+      : (handlePost(path, body) as Promise<T>),
   patch: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
-  delete: (path: string) => request<void>(path, { method: "DELETE" }),
+    isEnginePath(path)
+      ? engineRequest<T>(path, { method: "PATCH", body: JSON.stringify(body) })
+      : (handlePatch(path, body) as Promise<T>),
+  delete: (path: string) =>
+    isEnginePath(path)
+      ? engineRequest<void>(path, { method: "DELETE" })
+      : handleDelete(path),
 };

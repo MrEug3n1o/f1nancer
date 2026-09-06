@@ -1,12 +1,17 @@
 # F1nancer
 
-Local-first personal finance **desktop app**. Track income and expenses, budgets, savings goals, recurring payments, and simple charts. No login — data lives in a SQLite file on your machine.
+Offline-first personal finance app for **desktop and mobile**. Track income and expenses, budgets, savings goals, recurring payments, and simple charts. Sign in with a username and password; the same account syncs across devices. Each device keeps a local SQLite copy and works fully offline.
 
 ## Stack
 
-- **UI:** React + TypeScript + Vite (`frontend/`), bundled into the app
-- **Local engine:** FastAPI + SQLAlchemy + SQLite (`backend/`)
+- **Desktop UI:** React + TypeScript + Vite (`frontend/`), bundled into the app
+- **Mobile:** Expo / React Native (`mobile/`)
+- **Sync:** Supabase (Auth + Postgres) + PowerSync (on-device SQLite)
+- **Shared domain:** `@f1nancer/domain` (`packages/domain`)
 - **Desktop shell:** pywebview + PyInstaller (`desktop/`) — macOS `.app`/DMG and Windows Setup.exe
+- **Local engine (packaging / updates / legacy import):** FastAPI (`backend/`)
+
+Cloud setup (migrations, username auth, PowerSync rules): see [`supabase/README.md`](supabase/README.md). Copy [`frontend/.env.example`](frontend/.env.example) and [`mobile/.env.example`](mobile/.env.example).
 
 ## Mac
 
@@ -108,13 +113,27 @@ Vite proxies `/api` to the local engine. Open the URL Vite prints (usually http:
 
 ## Backup
 
-| Platform | Default database path |
-|----------|------------------------|
+Signed-in data syncs to your F1nancer account. Each device also keeps a local SQLite database (PowerSync). Signing out clears the local copy on that device.
+
+Legacy (pre-sync) desktop files can be imported from Settings after you sign in:
+
+| Platform | Old database path |
+|----------|-------------------|
 | macOS | `~/Library/Application Support/F1nancer/f1nancer.db` |
 | Windows | `%LOCALAPPDATA%\F1nancer\f1nancer.db` |
 | Linux | `~/.local/share/F1nancer/f1nancer.db` |
 
-Override the data directory with `F1NANCER_DATA_DIR` if needed.
+## Mobile
+
+```bash
+cd mobile
+cp .env.example .env
+# fill Supabase + PowerSync URLs
+npm install
+npx expo start
+```
+
+Use the same username and password as desktop. Create a transaction in airplane mode, then reconnect — it should appear on desktop and in the Supabase table editor.
 
 ## Features
 

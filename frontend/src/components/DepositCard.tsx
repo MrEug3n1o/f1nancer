@@ -115,8 +115,8 @@ export function DepositCard({
   onDelete,
 }: {
   deposit: Deposit;
-  onComplete?: (id: number) => void;
-  onDelete?: (id: number) => void;
+  onComplete?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }) {
   const { locale } = useApp();
   const d = deposit;

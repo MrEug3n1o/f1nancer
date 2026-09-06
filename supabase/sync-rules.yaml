@@ -1,0 +1,19 @@
+# PowerSync Sync Streams — one auto-subscribed stream per signed-in user.
+# Paste into PowerSync Dashboard → Sync Streams → Deploy.
+config:
+  edition: 3
+
+streams:
+  user_data:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM profiles WHERE id = auth.user_id()
+      - SELECT * FROM currencies WHERE user_id = auth.user_id()
+      - SELECT * FROM categories WHERE user_id = auth.user_id()
+      - SELECT * FROM settings WHERE user_id = auth.user_id()
+      - SELECT * FROM transactions WHERE user_id = auth.user_id()
+      - SELECT * FROM budgets WHERE user_id = auth.user_id()
+      - SELECT * FROM goals WHERE user_id = auth.user_id()
+      - SELECT * FROM deposits WHERE user_id = auth.user_id()
+      - SELECT * FROM credit_debts WHERE user_id = auth.user_id()
+      - SELECT * FROM recurring_rules WHERE user_id = auth.user_id()

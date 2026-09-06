@@ -81,7 +81,7 @@ export function SubscriptionsPage() {
       await api.post("/recurring", {
         amount: dollarsToCents(amount),
         currency_code: currencyCode,
-        category_id: Number(categoryId),
+        category_id: categoryId,
         type,
         money_location: moneyLocation,
         cadence,
@@ -105,7 +105,7 @@ export function SubscriptionsPage() {
     }
   }
 
-  async function onDelete(id: number) {
+  async function onDelete(id: string) {
     if (!confirm("Delete this subscription?")) return;
     try {
       await api.delete(`/recurring/${id}`);

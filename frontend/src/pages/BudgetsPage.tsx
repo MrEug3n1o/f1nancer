@@ -16,7 +16,7 @@ export function BudgetsPage() {
   const [categoryId, setCategoryId] = useState("");
   const [limit, setLimit] = useState("");
   const [currencyCode, setCurrencyCode] = useState(defaultCurrency);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -74,7 +74,7 @@ export function BudgetsPage() {
         throw new Error("Select a category");
       }
       const payload = {
-        category_id: Number(categoryId),
+        category_id: categoryId,
         limit_cents: dollarsToCents(limit),
         currency_code: currencyCode,
       };
@@ -90,7 +90,7 @@ export function BudgetsPage() {
     }
   }
 
-  async function onDelete(id: number) {
+  async function onDelete(id: string) {
     if (!confirm("Delete this monthly budget? It will be removed for every month.")) {
       return;
     }

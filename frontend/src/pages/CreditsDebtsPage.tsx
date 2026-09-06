@@ -117,7 +117,7 @@ export function CreditsDebtsPage() {
   }
 
   async function onPay(
-    id: number,
+    id: string,
     amountCents: number,
     date: string,
     noteText: string,
@@ -138,7 +138,7 @@ export function CreditsDebtsPage() {
     }
   }
 
-  async function onDelete(id: number) {
+  async function onDelete(id: string) {
     if (!confirm("Delete this item? Its transactions stay in your history.")) return;
     setError(null);
     try {
@@ -149,7 +149,7 @@ export function CreditsDebtsPage() {
     }
   }
 
-  async function onCompleteRental(id: number) {
+  async function onCompleteRental(id: string) {
     setError(null);
     try {
       await api.post(`/deposits/${id}/complete`, {});
@@ -159,7 +159,7 @@ export function CreditsDebtsPage() {
     }
   }
 
-  async function onDeleteRental(id: number) {
+  async function onDeleteRental(id: string) {
     if (!confirm("Delete this deposit?")) return;
     try {
       await api.delete(`/deposits/${id}`);
