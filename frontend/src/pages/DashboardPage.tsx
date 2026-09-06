@@ -68,7 +68,7 @@ const WIDGET_TITLES: Record<DashboardWidgetId, string> = {
   budgets: "Budget progress",
   category_table: "Category breakdown",
   goals: "Goals",
-  deposits: "Deposits",
+  deposits: "Bank",
   credits_debts: "Credits & debts",
 };
 
@@ -114,6 +114,7 @@ export function DashboardPage() {
   const [spend, setSpend] = useState<CategorySpend[]>([]);
   const [goals, setGoals] = useState<GoalProgress[]>([]);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [rentalDeposits, setRentalDeposits] = useState<Deposit[]>([]);
   const [creditDebts, setCreditDebts] = useState<CreditDebt[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [spendCurrency, setSpendCurrency] = useState("");
@@ -135,14 +136,15 @@ export function DashboardPage() {
       const spendUrl = spendCurrency
         ? `/analytics/spend-by-category?month=${month}&currency=${spendCurrency}`
         : `/analytics/spend-by-category?month=${month}`;
-      const [ov, pocketData, sp, gp, bu, dep, cd] = await Promise.all([
+      const [ov, pocketData, sp, gp, bu, dep, rentals, cd] = await Promise.all([
         api.get<MonthOverview>(`/analytics/month-overview?month=${month}`),
         api.get<PocketOverview>("/analytics/pocket"),
         api.get<CategorySpend[]>(spendUrl),
         api.get<GoalProgress[]>("/analytics/goals-progress"),
         api.get<Budget[]>(`/budgets?month=${month}`),
-        api.get<Deposit[]>("/deposits"),
-        api.get<CreditDebt[]>("/credits-debts"),
+        api.get<Deposit[]>("/deposits?type=bank"),
+        api.get<Deposit[]>("/deposits?type=rental"),
+        api.get<CreditDebt[]>("/credits-debts?source=informal"),
       ]);
       setOverview(ov);
       setPocket(pocketData);
@@ -150,6 +152,7 @@ export function DashboardPage() {
       setGoals(gp);
       setBudgets(bu);
       setDeposits(dep.filter((d) => d.status === "active"));
+      setRentalDeposits(rentals.filter((d) => d.status === "active"));
       setCreditDebts(cd.filter((item) => item.status === "active"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard");
@@ -393,8 +396,8 @@ export function DashboardPage() {
       case "deposits":
         return deposits.length === 0 ? (
           <EmptyState
-            title="No active deposits"
-            hint="Add a bank or rental deposit on the Deposits page."
+            title="No active bank deposits"
+            hint="Add a term deposit on the Bank page."
           />
         ) : (
           <DepositsView
@@ -404,17 +407,28 @@ export function DashboardPage() {
           />
         );
       case "credits_debts":
-        return creditDebts.length === 0 ? (
+        return creditDebts.length === 0 && rentalDeposits.length === 0 ? (
           <EmptyState
             title="No active credits or debts"
-            hint="Track money you lent or owe on the Credits & Debts page."
+            hint="Track informal IOUs and rental deposits on the Credits & Debts page."
           />
         ) : (
-          <CreditsDebtsView
-            view={resolveWidgetView("credits_debts", widgetViews)}
-            items={creditDebts}
-            resolvedTheme={resolvedTheme}
-          />
+          <>
+            {creditDebts.length > 0 ? (
+              <CreditsDebtsView
+                view={resolveWidgetView("credits_debts", widgetViews)}
+                items={creditDebts}
+                resolvedTheme={resolvedTheme}
+              />
+            ) : null}
+            {rentalDeposits.length > 0 ? (
+              <DepositsView
+                view={resolveWidgetView("credits_debts", widgetViews)}
+                deposits={rentalDeposits}
+                resolvedTheme={resolvedTheme}
+              />
+            ) : null}
+          </>
         );
     }
   }

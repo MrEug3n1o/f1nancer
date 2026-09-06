@@ -2,9 +2,9 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { AppProvider } from "./context";
 import { BudgetsPage } from "./pages/BudgetsPage";
+import { BankPage } from "./pages/BankPage";
 import { CreditsDebtsPage } from "./pages/CreditsDebtsPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { DepositsPage } from "./pages/DepositsPage";
 import { GoalsPage } from "./pages/GoalsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SubscriptionsPage } from "./pages/SubscriptionsPage";
@@ -20,7 +20,8 @@ export default function App() {
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/budgets" element={<BudgetsPage />} />
             <Route path="/goals" element={<GoalsPage />} />
-            <Route path="/deposits" element={<DepositsPage />} />
+            <Route path="/bank" element={<BankPage />} />
+            <Route path="/deposits" element={<Navigate to="/bank" replace />} />
             <Route path="/credits-debts" element={<CreditsDebtsPage />} />
             <Route path="/subscriptions" element={<SubscriptionsPage />} />
             <Route path="/statistics" element={<Navigate to="/" replace />} />

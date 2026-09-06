@@ -5,6 +5,7 @@ import { IconPencil, IconTrash } from "../components/NavIcons";
 import { PillSelect } from "../components/PillSelect";
 import { EmptyState, ErrorBanner, IconButton, Money, ProgressBar } from "../components/ui";
 import { useApp } from "../context";
+import { usePageComposer } from "../hooks/usePageComposer";
 import type { Budget, Category } from "../types";
 import { centsToDollarsInput, dollarsToCents, formatMonthLabel } from "../utils";
 
@@ -18,6 +19,18 @@ export function BudgetsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  function resetForm() {
+    setEditingId(null);
+    setCategoryId("");
+    setLimit("");
+    setCurrencyCode(defaultCurrency);
+  }
+
+  const { showComposer, closeComposer } = usePageComposer({
+    isEditing: editingId != null,
+    onReset: resetForm,
+  });
 
   useEffect(() => {
     if (!editingId) {
@@ -53,13 +66,6 @@ export function BudgetsPage() {
     setCurrencyCode(budget.currency_code);
   }
 
-  function resetForm() {
-    setEditingId(null);
-    setCategoryId("");
-    setLimit("");
-    setCurrencyCode(defaultCurrency);
-  }
-
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -77,7 +83,7 @@ export function BudgetsPage() {
       } else {
         await api.post(`/budgets?month=${month}`, payload);
       }
-      resetForm();
+      closeComposer();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -91,7 +97,7 @@ export function BudgetsPage() {
     setError(null);
     try {
       await api.delete(`/budgets/${id}`);
-      if (editingId === id) resetForm();
+      if (editingId === id) closeComposer();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
@@ -124,95 +130,95 @@ export function BudgetsPage() {
   return (
     <div className="stack">
       <ErrorBanner message={error} />
-      <section className={`section txn-composer${editingId ? " is-editing" : ""}`}>
-        <div className="txn-composer-head">
-          <div>
-            <h2>{editingId ? "Edit monthly limit" : "Set monthly limit"}</h2>
-            <p className="muted">
-              Limits repeat every month, like a subscription, until you edit or delete them.
-            </p>
+      {showComposer ? (
+        <section className={`section txn-composer${editingId ? " is-editing" : ""}`}>
+          <div className="txn-composer-head">
+            <div>
+              <h2>{editingId ? "Edit monthly limit" : "Set monthly limit"}</h2>
+              <p className="muted">
+                Limits repeat every month, like a subscription, until you edit or delete them.
+              </p>
+            </div>
           </div>
-        </div>
-        <form className="txn-form" onSubmit={onSubmit}>
-          <div className="txn-amount-block">
-            <div className="txn-amount-row">
-              <input
-                className="txn-amount-input"
-                type="number"
-                inputMode="decimal"
-                min="0.01"
-                step="0.01"
-                required
-                aria-label="Limit"
-                value={limit}
-                onChange={(e) => setLimit(e.target.value)}
-                placeholder="0.00"
+          <form className="txn-form" onSubmit={onSubmit}>
+            <div className="txn-amount-block">
+              <div className="txn-amount-row">
+                <input
+                  className="txn-amount-input"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  aria-label="Limit"
+                  value={limit}
+                  onChange={(e) => setLimit(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <PillSelect
+                className="txn-currency-select"
+                ariaLabel="Currency"
+                value={currencyCode}
+                onChange={changeCurrency}
+                options={currencies.map((c) => ({
+                  value: c.code,
+                  label: c.code,
+                }))}
               />
             </div>
-            <PillSelect
-              className="txn-currency-select"
-              ariaLabel="Currency"
-              value={currencyCode}
-              onChange={changeCurrency}
-              options={currencies.map((c) => ({
-                value: c.code,
-                label: c.code,
-              }))}
-            />
-          </div>
 
-          <fieldset className="txn-fieldset">
-            <legend>Category</legend>
-            {available.length === 0 ? (
-              <p className="muted small txn-empty-hint">
-                {categories.length === 0 ? (
-                  <>
-                    No expense categories yet.{" "}
-                    <Link to="/settings">Add them in Settings</Link>.
-                  </>
-                ) : (
-                  "Every category already has a limit in this currency."
-                )}
-              </p>
-            ) : (
-              <div className="txn-chips" role="radiogroup" aria-label="Category">
-                {available.map((c) => {
-                  const selected = categoryId === String(c.id);
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      className={`txn-chip${selected ? " selected" : ""}`}
-                      style={{ "--chip-color": c.color } as CSSProperties}
-                      onClick={() => setCategoryId(String(c.id))}
-                    >
-                      <span className="swatch" style={{ background: c.color }} />
-                      {c.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </fieldset>
+            <fieldset className="txn-fieldset">
+              <legend>Category</legend>
+              {available.length === 0 ? (
+                <p className="muted small txn-empty-hint">
+                  {categories.length === 0 ? (
+                    <>
+                      No expense categories yet.{" "}
+                      <Link to="/settings">Add them in Settings</Link>.
+                    </>
+                  ) : (
+                    "Every category already has a limit in this currency."
+                  )}
+                </p>
+              ) : (
+                <div className="txn-chips" role="radiogroup" aria-label="Category">
+                  {available.map((c) => {
+                    const selected = categoryId === String(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        className={`txn-chip${selected ? " selected" : ""}`}
+                        style={{ "--chip-color": c.color } as CSSProperties}
+                        onClick={() => setCategoryId(String(c.id))}
+                      >
+                        <span className="swatch" style={{ background: c.color }} />
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </fieldset>
 
-          <div className="form-actions txn-actions">
-            <button
-              type="submit"
-              className="btn primary txn-submit"
-              disabled={!available.length}
-            >
-              {editingId ? "Update budget" : "Add budget"}
-            </button>
-            {editingId ? (
-              <button type="button" className="btn ghost" onClick={resetForm}>
+            <div className="form-actions txn-actions">
+              <button
+                type="submit"
+                className="btn primary txn-submit"
+                disabled={!available.length}
+              >
+                {editingId ? "Update budget" : "Add budget"}
+              </button>
+              <button type="button" className="btn ghost" onClick={closeComposer}>
                 Cancel
               </button>
-            ) : null}
-          </div>
-        </form>
-      </section>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
       <section className="section">
         <h2>Monthly limits</h2>

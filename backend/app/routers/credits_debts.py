@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from app.credit_debt_utils import (
@@ -96,8 +96,14 @@ def _add_tagged_transaction(
 
 
 @router.get("", response_model=list[CreditDebtOut])
-def list_credit_debts(db: Session = Depends(get_db)):
-    items = db.query(CreditDebt).order_by(CreditDebt.created_at.desc()).all()
+def list_credit_debts(
+    source: str | None = Query(default=None, pattern="^(bank|informal)$"),
+    db: Session = Depends(get_db),
+):
+    query = db.query(CreditDebt)
+    if source is not None:
+        query = query.filter(CreditDebt.source == source)
+    items = query.order_by(CreditDebt.created_at.desc()).all()
     return [_to_out(db, item) for item in items]
 
 

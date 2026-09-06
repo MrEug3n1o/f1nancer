@@ -207,7 +207,7 @@ export const DASHBOARD_WIDGET_OPTIONS = [
   { id: "budgets", label: "Budget progress" },
   { id: "category_table", label: "Category breakdown table" },
   { id: "goals", label: "Goals" },
-  { id: "deposits", label: "Deposits" },
+  { id: "deposits", label: "Bank" },
   { id: "credits_debts", label: "Credits & debts" },
 ] as const;
 

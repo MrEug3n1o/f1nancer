@@ -6,6 +6,7 @@ import { IconTrash } from "../components/NavIcons";
 import { PillSelect } from "../components/PillSelect";
 import { EmptyState, ErrorBanner, IconButton, Money, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
+import { usePageComposer } from "../hooks/usePageComposer";
 import type { Cadence, Category, CategoryType, RecurringRule } from "../types";
 import { dollarsToCents, todayISO } from "../utils";
 
@@ -55,6 +56,19 @@ export function SubscriptionsPage() {
     void load();
   }, [load]);
 
+  function resetForm() {
+    setAmount("");
+    setCategoryId("");
+    setNote("");
+    setNextRun(todayISO());
+    setCadence("monthly");
+    setType("expense");
+  }
+
+  const { showComposer, closeComposer } = usePageComposer({
+    onReset: resetForm,
+  });
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -72,10 +86,7 @@ export function SubscriptionsPage() {
         note: note.trim() || null,
         active: true,
       });
-      setAmount("");
-      setCategoryId("");
-      setNote("");
-      setNextRun(todayISO());
+      closeComposer();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -104,137 +115,142 @@ export function SubscriptionsPage() {
   return (
     <div className="stack">
       <ErrorBanner message={error} />
-      <section className={`section txn-composer txn-${type}`}>
-        <div className="txn-composer-head">
-          <h2>Add recurring payment</h2>
-          <SegmentedControl
-            ariaLabel="Payment type"
-            value={type}
-            onChange={(next) => {
-              setType(next);
-              setCategoryId("");
-            }}
-            options={[
-              { value: "expense", label: "Expense" },
-              { value: "income", label: "Income" },
-            ]}
-          />
-        </div>
-        <form className="txn-form" onSubmit={onSubmit}>
-          <div className="txn-amount-block">
-            <div className="txn-amount-row">
-              <span className="txn-amount-sign" aria-hidden>
-                {type === "expense" ? "−" : "+"}
-              </span>
-              <input
-                className="txn-amount-input"
-                type="number"
-                inputMode="decimal"
-                min="0.01"
-                step="0.01"
-                required
-                aria-label="Amount"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-            <PillSelect
-              className="txn-currency-select"
-              ariaLabel="Currency"
-              value={currencyCode}
-              onChange={setCurrencyCode}
-              options={currencies.map((c) => ({
-                value: c.code,
-                label: c.code,
-              }))}
+      {showComposer ? (
+        <section className={`section txn-composer txn-${type}`}>
+          <div className="txn-composer-head">
+            <h2>Add recurring payment</h2>
+            <SegmentedControl
+              ariaLabel="Payment type"
+              value={type}
+              onChange={(next) => {
+                setType(next);
+                setCategoryId("");
+              }}
+              options={[
+                { value: "expense", label: "Expense" },
+                { value: "income", label: "Income" },
+              ]}
             />
           </div>
-
-          <fieldset className="txn-fieldset">
-            <legend>Category</legend>
-            {filteredCategories.length === 0 ? (
-              <p className="muted small txn-empty-hint">
-                No {type} categories yet.{" "}
-                <Link to="/settings">Add them in Settings</Link>.
-              </p>
-            ) : (
-              <div className="txn-chips" role="radiogroup" aria-label="Category">
-                {filteredCategories.map((c) => {
-                  const selected = categoryId === String(c.id);
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      className={`txn-chip${selected ? " selected" : ""}`}
-                      style={{ "--chip-color": c.color } as CSSProperties}
-                      onClick={() => setCategoryId(String(c.id))}
-                    >
-                      <span className="swatch" style={{ background: c.color }} />
-                      {c.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </fieldset>
-
-          <div className="txn-meta-row">
-            <div className="txn-date-field">
-              <label htmlFor="sub-next-run">Next run</label>
-              <div className="txn-date-row">
-                <DatePicker
-                  id="sub-next-run"
-                  value={nextRun}
-                  onChange={setNextRun}
+          <form className="txn-form" onSubmit={onSubmit}>
+            <div className="txn-amount-block">
+              <div className="txn-amount-row">
+                <span className="txn-amount-sign" aria-hidden>
+                  {type === "expense" ? "−" : "+"}
+                </span>
+                <input
+                  className="txn-amount-input"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  aria-label="Amount"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
                 />
-                <div className="txn-date-chips">
-                  <button
-                    type="button"
-                    className={`txn-chip${nextRun === today ? " selected" : ""}`}
-                    style={{ "--chip-color": "var(--accent)" } as CSSProperties}
-                    onClick={() => setNextRun(today)}
-                  >
-                    Today
-                  </button>
+              </div>
+              <PillSelect
+                className="txn-currency-select"
+                ariaLabel="Currency"
+                value={currencyCode}
+                onChange={setCurrencyCode}
+                options={currencies.map((c) => ({
+                  value: c.code,
+                  label: c.code,
+                }))}
+              />
+            </div>
+
+            <fieldset className="txn-fieldset">
+              <legend>Category</legend>
+              {filteredCategories.length === 0 ? (
+                <p className="muted small txn-empty-hint">
+                  No {type} categories yet.{" "}
+                  <Link to="/settings">Add them in Settings</Link>.
+                </p>
+              ) : (
+                <div className="txn-chips" role="radiogroup" aria-label="Category">
+                  {filteredCategories.map((c) => {
+                    const selected = categoryId === String(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        className={`txn-chip${selected ? " selected" : ""}`}
+                        style={{ "--chip-color": c.color } as CSSProperties}
+                        onClick={() => setCategoryId(String(c.id))}
+                      >
+                        <span className="swatch" style={{ background: c.color }} />
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </fieldset>
+
+            <div className="txn-meta-row">
+              <div className="txn-date-field">
+                <label htmlFor="sub-next-run">Next run</label>
+                <div className="txn-date-row">
+                  <DatePicker
+                    id="sub-next-run"
+                    value={nextRun}
+                    onChange={setNextRun}
+                  />
+                  <div className="txn-date-chips">
+                    <button
+                      type="button"
+                      className={`txn-chip${nextRun === today ? " selected" : ""}`}
+                      style={{ "--chip-color": "var(--accent)" } as CSSProperties}
+                      onClick={() => setNextRun(today)}
+                    >
+                      Today
+                    </button>
+                  </div>
                 </div>
               </div>
+              <div className="txn-goal-field">
+                <span>Cadence</span>
+                <SegmentedControl
+                  ariaLabel="Cadence"
+                  value={cadence}
+                  onChange={setCadence}
+                  options={[
+                    { value: "weekly", label: "Weekly" },
+                    { value: "monthly", label: "Monthly" },
+                    { value: "yearly", label: "Yearly" },
+                  ]}
+                />
+              </div>
             </div>
-            <div className="txn-goal-field">
-              <span>Cadence</span>
-              <SegmentedControl
-                ariaLabel="Cadence"
-                value={cadence}
-                onChange={setCadence}
-                options={[
-                  { value: "weekly", label: "Weekly" },
-                  { value: "monthly", label: "Monthly" },
-                  { value: "yearly", label: "Yearly" },
-                ]}
+
+            <label className="txn-note-field">
+              <span className="txn-label-row">
+                Note <span className="txn-optional">optional</span>
+              </span>
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Netflix, rent…"
               />
+            </label>
+
+            <div className="form-actions txn-actions">
+              <button type="submit" className="btn primary txn-submit">
+                {type === "income" ? "Add income" : "Add subscription"}
+              </button>
+              <button type="button" className="btn ghost" onClick={closeComposer}>
+                Cancel
+              </button>
             </div>
-          </div>
-
-          <label className="txn-note-field">
-            <span className="txn-label-row">
-              Note <span className="txn-optional">optional</span>
-            </span>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Netflix, rent…"
-            />
-          </label>
-
-          <div className="form-actions txn-actions">
-            <button type="submit" className="btn primary txn-submit">
-              {type === "income" ? "Add income" : "Add subscription"}
-            </button>
-          </div>
-        </form>
-      </section>
+          </form>
+        </section>
+      ) : null}
 
       <section className="section">
         <h2>Subscriptions & recurring</h2>

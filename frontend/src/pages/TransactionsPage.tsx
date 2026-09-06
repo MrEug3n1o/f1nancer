@@ -6,6 +6,7 @@ import { IconPencil, IconTrash } from "../components/NavIcons";
 import { PillSelect } from "../components/PillSelect";
 import { EmptyState, ErrorBanner, IconButton, Money, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
+import { usePageComposer } from "../hooks/usePageComposer";
 import type { Category, CategoryType, Goal, Transaction } from "../types";
 import { centsToDollarsInput, dollarsToCents, shiftDateISO, todayISO } from "../utils";
 
@@ -32,6 +33,28 @@ export function TransactionsPage() {
   const composerRef = useRef<HTMLElement>(null);
   const today = todayISO();
   const yesterday = shiftDateISO(today, -1);
+
+  function focusAmount() {
+    requestAnimationFrame(() => amountRef.current?.focus());
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setForm({
+      amount: "",
+      currency_code: defaultCurrency,
+      date: todayISO(),
+      type: "expense",
+      category_id: "",
+      note: "",
+      goal_id: "",
+    });
+  }
+
+  const { showComposer, closeComposer } = usePageComposer({
+    isEditing: editingId != null,
+    onReset: resetForm,
+  });
 
   useEffect(() => {
     if (!editingId) {
@@ -85,9 +108,9 @@ export function TransactionsPage() {
     void load();
   }, [load]);
 
-  function focusAmount() {
-    requestAnimationFrame(() => amountRef.current?.focus());
-  }
+  useEffect(() => {
+    if (showComposer) focusAmount();
+  }, [showComposer]);
 
   function startEdit(txn: Transaction) {
     setEditingId(txn.id);
@@ -100,22 +123,10 @@ export function TransactionsPage() {
       note: txn.note ?? "",
       goal_id: txn.goal_id ? String(txn.goal_id) : "",
     });
-    focusAmount();
-    composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  function resetForm() {
-    setEditingId(null);
-    setForm({
-      amount: "",
-      currency_code: defaultCurrency,
-      date: todayISO(),
-      type: "expense",
-      category_id: "",
-      note: "",
-      goal_id: "",
+    requestAnimationFrame(() => {
+      focusAmount();
+      composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    focusAmount();
   }
 
   async function onSubmit(e: FormEvent) {
@@ -140,7 +151,7 @@ export function TransactionsPage() {
       } else {
         await api.post("/transactions", payload);
       }
-      resetForm();
+      closeComposer();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -152,7 +163,7 @@ export function TransactionsPage() {
     setError(null);
     try {
       await api.delete(`/transactions/${id}`);
-      if (editingId === id) resetForm();
+      if (editingId === id) closeComposer();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
@@ -162,186 +173,186 @@ export function TransactionsPage() {
   return (
     <div className="stack">
       <ErrorBanner message={error} />
-      <section
-        ref={composerRef}
-        className={`section txn-composer txn-${form.type}${editingId ? " is-editing" : ""}`}
-      >
-        <div className="txn-composer-head">
-          <h2>{editingId ? "Edit transaction" : "Add transaction"}</h2>
-          <SegmentedControl
-            ariaLabel="Transaction type"
-            value={form.type}
-            onChange={(type) =>
-              setForm((f) => ({
-                ...f,
-                type,
-                category_id: "",
-                goal_id: type === "expense" ? f.goal_id : "",
-              }))
-            }
-            options={[
-              { value: "expense", label: "Expense" },
-              { value: "income", label: "Income" },
-            ]}
-          />
-        </div>
+      {showComposer ? (
+        <section
+          ref={composerRef}
+          className={`section txn-composer txn-${form.type}${editingId ? " is-editing" : ""}`}
+        >
+          <div className="txn-composer-head">
+            <h2>{editingId ? "Edit transaction" : "Add transaction"}</h2>
+            <SegmentedControl
+              ariaLabel="Transaction type"
+              value={form.type}
+              onChange={(type) =>
+                setForm((f) => ({
+                  ...f,
+                  type,
+                  category_id: "",
+                  goal_id: type === "expense" ? f.goal_id : "",
+                }))
+              }
+              options={[
+                { value: "expense", label: "Expense" },
+                { value: "income", label: "Income" },
+              ]}
+            />
+          </div>
 
-        <form className="txn-form" onSubmit={onSubmit}>
-          <div className="txn-amount-block">
-            <div className="txn-amount-row">
-              <span className="txn-amount-sign" aria-hidden>
-                {form.type === "expense" ? "−" : "+"}
-              </span>
-              <input
-                id="txn-amount"
-                ref={amountRef}
-                className="txn-amount-input"
-                type="number"
-                inputMode="decimal"
-                min="0.01"
-                step="0.01"
-                required
-                autoFocus
-                aria-label="Amount"
-                value={form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                placeholder="0.00"
+          <form className="txn-form" onSubmit={onSubmit}>
+            <div className="txn-amount-block">
+              <div className="txn-amount-row">
+                <span className="txn-amount-sign" aria-hidden>
+                  {form.type === "expense" ? "−" : "+"}
+                </span>
+                <input
+                  id="txn-amount"
+                  ref={amountRef}
+                  className="txn-amount-input"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  autoFocus
+                  aria-label="Amount"
+                  value={form.amount}
+                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  placeholder="0.00"
+                />
+              </div>
+              <PillSelect
+                className="txn-currency-select"
+                ariaLabel="Currency"
+                value={form.currency_code}
+                onChange={(next) => {
+                  setForm((f) => {
+                    const selected = goals.find((g) => String(g.id) === f.goal_id);
+                    const keepGoal = selected && selected.currency_code === next;
+                    return {
+                      ...f,
+                      currency_code: next,
+                      goal_id: keepGoal ? f.goal_id : "",
+                    };
+                  });
+                }}
+                options={currencies.map((c) => ({
+                  value: c.code,
+                  label: c.code,
+                }))}
               />
             </div>
-            <PillSelect
-              className="txn-currency-select"
-              ariaLabel="Currency"
-              value={form.currency_code}
-              onChange={(next) => {
-                setForm((f) => {
-                  const selected = goals.find((g) => String(g.id) === f.goal_id);
-                  const keepGoal = selected && selected.currency_code === next;
-                  return {
-                    ...f,
-                    currency_code: next,
-                    goal_id: keepGoal ? f.goal_id : "",
-                  };
-                });
-              }}
-              options={currencies.map((c) => ({
-                value: c.code,
-                label: c.code,
-              }))}
-            />
-          </div>
 
-          <fieldset className="txn-fieldset">
-            <legend>Category</legend>
-            {filteredCategories.length === 0 ? (
-              <p className="muted small txn-empty-hint">
-                No {form.type} categories yet.{" "}
-                <Link to="/settings">Add them in Settings</Link>.
-              </p>
-            ) : (
-              <div className="txn-chips" role="radiogroup" aria-label="Category">
-                {filteredCategories.map((c) => {
-                  const selected = form.category_id === String(c.id);
-                  return (
+            <fieldset className="txn-fieldset">
+              <legend>Category</legend>
+              {filteredCategories.length === 0 ? (
+                <p className="muted small txn-empty-hint">
+                  No {form.type} categories yet.{" "}
+                  <Link to="/settings">Add them in Settings</Link>.
+                </p>
+              ) : (
+                <div className="txn-chips" role="radiogroup" aria-label="Category">
+                  {filteredCategories.map((c) => {
+                    const selected = form.category_id === String(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        className={`txn-chip${selected ? " selected" : ""}`}
+                        style={{ "--chip-color": c.color } as CSSProperties}
+                        onClick={() =>
+                          setForm((f) => ({ ...f, category_id: String(c.id) }))
+                        }
+                      >
+                        <span className="swatch" style={{ background: c.color }} />
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </fieldset>
+
+            <div className="txn-meta-row">
+              <div className="txn-date-field">
+                <label htmlFor="txn-date">Date</label>
+                <div className="txn-date-row">
+                  <DatePicker
+                    id="txn-date"
+                    value={form.date}
+                    onChange={(date) => setForm((f) => ({ ...f, date }))}
+                  />
+                  <div className="txn-date-chips">
                     <button
-                      key={c.id}
                       type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      className={`txn-chip${selected ? " selected" : ""}`}
-                      style={{ "--chip-color": c.color } as CSSProperties}
-                      onClick={() =>
-                        setForm((f) => ({ ...f, category_id: String(c.id) }))
-                      }
+                      className={`txn-chip${form.date === today ? " selected" : ""}`}
+                      style={{ "--chip-color": "var(--accent)" } as CSSProperties}
+                      onClick={() => setForm((f) => ({ ...f, date: today }))}
                     >
-                      <span className="swatch" style={{ background: c.color }} />
-                      {c.name}
+                      Today
                     </button>
-                  );
-                })}
-              </div>
-            )}
-          </fieldset>
-
-          <div className="txn-meta-row">
-            <div className="txn-date-field">
-              <label htmlFor="txn-date">Date</label>
-              <div className="txn-date-row">
-                <DatePicker
-                  id="txn-date"
-                  value={form.date}
-                  onChange={(date) => setForm((f) => ({ ...f, date }))}
-                />
-                <div className="txn-date-chips">
-                  <button
-                    type="button"
-                    className={`txn-chip${form.date === today ? " selected" : ""}`}
-                    style={{ "--chip-color": "var(--accent)" } as CSSProperties}
-                    onClick={() => setForm((f) => ({ ...f, date: today }))}
-                  >
-                    Today
-                  </button>
-                  <button
-                    type="button"
-                    className={`txn-chip${form.date === yesterday ? " selected" : ""}`}
-                    style={{ "--chip-color": "var(--accent)" } as CSSProperties}
-                    onClick={() => setForm((f) => ({ ...f, date: yesterday }))}
-                  >
-                    Yesterday
-                  </button>
+                    <button
+                      type="button"
+                      className={`txn-chip${form.date === yesterday ? " selected" : ""}`}
+                      style={{ "--chip-color": "var(--accent)" } as CSSProperties}
+                      onClick={() => setForm((f) => ({ ...f, date: yesterday }))}
+                    >
+                      Yesterday
+                    </button>
+                  </div>
                 </div>
               </div>
+              {form.type === "expense" && goalOptions.length > 0 ? (
+                <div className="txn-goal-field">
+                  <span className="txn-label-row">
+                    Goal <span className="txn-optional">optional</span>
+                  </span>
+                  <PillSelect
+                    className="txn-goal-select"
+                    align="left"
+                    ariaLabel="Goal"
+                    value={form.goal_id}
+                    onChange={(goal_id) => setForm((f) => ({ ...f, goal_id }))}
+                    options={[
+                      { value: "", label: "None" },
+                      ...goalOptions.map((g) => ({
+                        value: String(g.id),
+                        label: g.name,
+                      })),
+                    ]}
+                  />
+                </div>
+              ) : null}
             </div>
-            {form.type === "expense" && goalOptions.length > 0 ? (
-              <div className="txn-goal-field">
-                <span className="txn-label-row">
-                  Goal <span className="txn-optional">optional</span>
-                </span>
-                <PillSelect
-                  className="txn-goal-select"
-                  align="left"
-                  ariaLabel="Goal"
-                  value={form.goal_id}
-                  onChange={(goal_id) => setForm((f) => ({ ...f, goal_id }))}
-                  options={[
-                    { value: "", label: "None" },
-                    ...goalOptions.map((g) => ({
-                      value: String(g.id),
-                      label: g.name,
-                    })),
-                  ]}
-                />
-              </div>
-            ) : null}
-          </div>
 
-          <label className="txn-note-field">
-            <span className="txn-label-row">
-              Note <span className="txn-optional">optional</span>
-            </span>
-            <input
-              type="text"
-              value={form.note}
-              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-              placeholder="Coffee, rent, paycheck…"
-            />
-          </label>
+            <label className="txn-note-field">
+              <span className="txn-label-row">
+                Note <span className="txn-optional">optional</span>
+              </span>
+              <input
+                type="text"
+                value={form.note}
+                onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+                placeholder="Coffee, rent, paycheck…"
+              />
+            </label>
 
-          <div className="form-actions txn-actions">
-            <button type="submit" className="btn primary txn-submit">
-              {editingId
-                ? "Save changes"
-                : form.type === "income"
-                  ? "Add income"
-                  : "Add expense"}
-            </button>
-            {editingId ? (
-              <button type="button" className="btn ghost" onClick={resetForm}>
+            <div className="form-actions txn-actions">
+              <button type="submit" className="btn primary txn-submit">
+                {editingId
+                  ? "Save changes"
+                  : form.type === "income"
+                    ? "Add income"
+                    : "Add expense"}
+              </button>
+              <button type="button" className="btn ghost" onClick={closeComposer}>
                 Cancel
               </button>
-            ) : null}
-          </div>
-        </form>
-      </section>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
       <section className="section">
         <div className="row-between wrap">

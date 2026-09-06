@@ -18,6 +18,15 @@ import {
 
 const SIDEBAR_COLLAPSED_KEY = "f1nancer.sidebarCollapsed";
 
+const LIST_COMPOSER_ROUTES = new Set([
+  "/transactions",
+  "/budgets",
+  "/goals",
+  "/bank",
+  "/credits-debts",
+  "/subscriptions",
+]);
+
 const links: {
   to: string;
   label: string;
@@ -28,8 +37,8 @@ const links: {
   { to: "/transactions", label: "Transactions", icon: IconList },
   { to: "/budgets", label: "Budgets", icon: IconWallet },
   { to: "/goals", label: "Goals", icon: IconTarget },
-  { to: "/deposits", label: "Deposits", icon: IconDeposit },
-  { to: "/credits-debts", label: "Credits & Debts", icon: IconScale },
+  { to: "/bank", label: "Bank", icon: IconDeposit },
+  { to: "/credits-debts", label: "Debts", icon: IconScale },
   { to: "/subscriptions", label: "Subscriptions", icon: IconRefresh },
   { to: "/settings", label: "Settings", icon: IconGear },
 ];
@@ -45,6 +54,7 @@ function readCollapsed(): boolean {
 export function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const isDashboard = location.pathname === "/";
+  const isListComposerPage = LIST_COMPOSER_ROUTES.has(location.pathname);
   const {
     month,
     setMonth,
@@ -52,6 +62,8 @@ export function Layout({ children }: { children: ReactNode }) {
     dashboardCustomizing,
     setDashboardCustomizing,
     dashboardCustomizeSession,
+    pageComposerSession,
+    registerPageComposer,
   } = useApp();
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
@@ -61,6 +73,12 @@ export function Layout({ children }: { children: ReactNode }) {
       setDashboardCustomizing(false);
     }
   }, [isDashboard, dashboardCustomizing, dashboardCustomizeSession, setDashboardCustomizing]);
+
+  useEffect(() => {
+    if (!isListComposerPage) {
+      registerPageComposer(null);
+    }
+  }, [isListComposerPage, registerPageComposer]);
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -183,6 +201,24 @@ export function Layout({ children }: { children: ReactNode }) {
                 onClick={() => setDashboardCustomizing(true)}
               >
                 Customize
+              </button>
+            )
+          ) : isListComposerPage ? (
+            pageComposerSession?.active ? (
+              <button
+                type="button"
+                className="topbar-text-btn"
+                onClick={() => pageComposerSession.onCancel()}
+              >
+                Cancel
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="topbar-text-btn"
+                onClick={() => pageComposerSession?.onAdd()}
+              >
+                Add
               </button>
             )
           ) : null}

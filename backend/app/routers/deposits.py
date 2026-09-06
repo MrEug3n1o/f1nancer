@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.currency_utils import require_enabled_currency
@@ -121,8 +121,14 @@ def _to_out(deposit: Deposit) -> DepositOut:
 
 
 @router.get("", response_model=list[DepositOut])
-def list_deposits(db: Session = Depends(get_db)):
-    deposits = db.query(Deposit).order_by(Deposit.created_at.desc()).all()
+def list_deposits(
+    type: str | None = Query(default=None, pattern="^(bank|rental)$"),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Deposit)
+    if type is not None:
+        query = query.filter(Deposit.type == type)
+    deposits = query.order_by(Deposit.created_at.desc()).all()
     return [_to_out(d) for d in deposits]
 
 

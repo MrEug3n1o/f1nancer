@@ -17,6 +17,12 @@ export type DashboardCustomizeSession = {
   onCancel: () => void;
 };
 
+export type PageComposerSession = {
+  active: boolean;
+  onAdd: () => void;
+  onCancel: () => void;
+};
+
 interface AppContextValue {
   month: string;
   setMonth: (m: string) => void;
@@ -29,6 +35,8 @@ interface AppContextValue {
   setDashboardCustomizing: (value: boolean | ((prev: boolean) => boolean)) => void;
   dashboardCustomizeSession: DashboardCustomizeSession | null;
   registerDashboardCustomize: (session: DashboardCustomizeSession | null) => void;
+  pageComposerSession: PageComposerSession | null;
+  registerPageComposer: (session: PageComposerSession | null) => void;
   refreshSettings: () => Promise<void>;
   refreshCurrencies: () => Promise<void>;
 }
@@ -52,6 +60,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [dashboardCustomizing, setDashboardCustomizing] = useState(false);
   const [dashboardCustomizeSession, setDashboardCustomizeSession] =
     useState<DashboardCustomizeSession | null>(null);
+  const [pageComposerSession, setPageComposerSession] =
+    useState<PageComposerSession | null>(null);
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() =>
     resolveTheme("system"),
   );
@@ -113,6 +123,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setDashboardCustomizing,
         dashboardCustomizeSession,
         registerDashboardCustomize: setDashboardCustomizeSession,
+        pageComposerSession,
+        registerPageComposer: setPageComposerSession,
         refreshSettings,
         refreshCurrencies,
       }}

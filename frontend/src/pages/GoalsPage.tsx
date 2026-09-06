@@ -5,6 +5,7 @@ import { IconPencil, IconTrash } from "../components/NavIcons";
 import { PillSelect } from "../components/PillSelect";
 import { EmptyState, ErrorBanner, IconButton, Money, ProgressBar } from "../components/ui";
 import { useApp } from "../context";
+import { usePageComposer } from "../hooks/usePageComposer";
 import type { Category, Goal, Transaction } from "../types";
 import { centsToDollarsInput, dollarsToCents, todayISO } from "../utils";
 
@@ -12,16 +13,14 @@ type TxnDraft = {
   editingId: number | null;
   amount: string;
   date: string;
-  category_id: string;
   note: string;
 };
 
-function emptyDraft(categoryId = ""): TxnDraft {
+function emptyDraft(): TxnDraft {
   return {
     editingId: null,
     amount: "",
     date: todayISO(),
-    category_id: categoryId,
     note: "",
   };
 }
@@ -66,20 +65,16 @@ export function GoalsPage() {
     void load();
   }, [load]);
 
-  const defaultExpenseCategoryId =
+  const goalsCategoryId =
     categories.find((c) => c.name === "Goals")?.id ?? categories[0]?.id;
 
   function draftFor(goalId: number): TxnDraft {
-    return (
-      txnDrafts[goalId] ?? emptyDraft(defaultExpenseCategoryId ? String(defaultExpenseCategoryId) : "")
-    );
+    return txnDrafts[goalId] ?? emptyDraft();
   }
 
   function setDraft(goalId: number, patch: Partial<TxnDraft>) {
     setTxnDrafts((m) => {
-      const current =
-        m[goalId] ??
-        emptyDraft(defaultExpenseCategoryId ? String(defaultExpenseCategoryId) : "");
+      const current = m[goalId] ?? emptyDraft();
       return { ...m, [goalId]: { ...current, ...patch } };
     });
   }
@@ -100,6 +95,11 @@ export function GoalsPage() {
     setDeadline("");
   }
 
+  const { showComposer, closeComposer } = usePageComposer({
+    isEditing: editingGoalId != null,
+    onReset: resetGoalForm,
+  });
+
   async function onSubmitGoal(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -115,7 +115,7 @@ export function GoalsPage() {
       } else {
         await api.post("/goals", payload);
       }
-      resetGoalForm();
+      closeComposer();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -127,13 +127,12 @@ export function GoalsPage() {
       editingId: txn.id,
       amount: centsToDollarsInput(txn.amount),
       date: txn.date,
-      category_id: String(txn.category_id),
       note: txn.note ?? "",
     });
   }
 
   function resetTxnForm(goalId: number) {
-    setDraft(goalId, emptyDraft(defaultExpenseCategoryId ? String(defaultExpenseCategoryId) : ""));
+    setDraft(goalId, emptyDraft());
   }
 
   async function onSubmitTxn(e: FormEvent, goal: Goal) {
@@ -141,15 +140,14 @@ export function GoalsPage() {
     setError(null);
     const draft = draftFor(goal.id);
     try {
-      const categoryId = Number(draft.category_id);
-      if (!categoryId) {
-        throw new Error("Select a category");
+      if (!goalsCategoryId) {
+        throw new Error("Goals category is missing");
       }
       if (draft.editingId) {
         await api.patch(`/transactions/${draft.editingId}`, {
           amount: dollarsToCents(draft.amount),
           date: draft.date,
-          category_id: categoryId,
+          category_id: goalsCategoryId,
           note: draft.note.trim() || null,
           type: "expense",
           currency_code: goal.currency_code,
@@ -159,7 +157,7 @@ export function GoalsPage() {
         await api.post(`/goals/${goal.id}/contribute`, {
           amount: dollarsToCents(draft.amount),
           date: draft.date,
-          category_id: categoryId,
+          category_id: goalsCategoryId,
           note: draft.note.trim() || null,
         });
       }
@@ -200,7 +198,7 @@ export function GoalsPage() {
     setError(null);
     try {
       await api.delete(`/goals/${id}`);
-      if (editingGoalId === id) resetGoalForm();
+      if (editingGoalId === id) closeComposer();
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
@@ -213,73 +211,73 @@ export function GoalsPage() {
   return (
     <div className="stack">
       <ErrorBanner message={error} />
-      <section className={`section txn-composer${editingGoalId ? " is-editing" : ""}`}>
-        <div className="txn-composer-head">
-          <h2>{editingGoalId ? "Edit savings goal" : "New savings goal"}</h2>
-        </div>
-        <form className="txn-form" onSubmit={onSubmitGoal}>
-          <label>
-            Name
-            <input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Emergency fund"
-            />
-          </label>
-          <div className="txn-amount-block">
-            <div className="txn-amount-row">
+      {showComposer ? (
+        <section className={`section txn-composer${editingGoalId ? " is-editing" : ""}`}>
+          <div className="txn-composer-head">
+            <h2>{editingGoalId ? "Edit savings goal" : "New savings goal"}</h2>
+          </div>
+          <form className="txn-form" onSubmit={onSubmitGoal}>
+            <label>
+              Name
               <input
-                className="txn-amount-input"
-                type="number"
-                inputMode="decimal"
-                min="0.01"
-                step="0.01"
                 required
-                aria-label="Target"
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-                placeholder="0.00"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Emergency fund"
+              />
+            </label>
+            <div className="txn-amount-block">
+              <div className="txn-amount-row">
+                <input
+                  className="txn-amount-input"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  aria-label="Target"
+                  value={target}
+                  onChange={(e) => setTarget(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <PillSelect
+                className="txn-currency-select"
+                ariaLabel="Currency"
+                value={currencyCode}
+                disabled={currencyLocked}
+                onChange={setCurrencyCode}
+                options={currencies.map((c) => ({
+                  value: c.code,
+                  label: c.code,
+                }))}
               />
             </div>
-            <PillSelect
-              className="txn-currency-select"
-              ariaLabel="Currency"
-              value={currencyCode}
-              disabled={currencyLocked}
-              onChange={setCurrencyCode}
-              options={currencies.map((c) => ({
-                value: c.code,
-                label: c.code,
-              }))}
-            />
-          </div>
-          <div className="txn-date-field">
-            <label htmlFor="goal-deadline">
-              <span className="txn-label-row">
-                Deadline <span className="txn-optional">optional</span>
-              </span>
-            </label>
-            <DatePicker
-              id="goal-deadline"
-              value={deadline}
-              onChange={setDeadline}
-              allowClear
-              placeholder="Choose deadline"
-            />
-          </div>
-          <div className="form-actions txn-actions">
-            <button type="submit" className="btn primary txn-submit">
-              {editingGoalId ? "Update goal" : "Create goal"}
-            </button>
-            {editingGoalId ? (
-              <button type="button" className="btn ghost" onClick={resetGoalForm}>
+            <div className="txn-date-field">
+              <label htmlFor="goal-deadline">
+                <span className="txn-label-row">
+                  Deadline <span className="txn-optional">optional</span>
+                </span>
+              </label>
+              <DatePicker
+                id="goal-deadline"
+                value={deadline}
+                onChange={setDeadline}
+                allowClear
+                placeholder="Choose deadline"
+              />
+            </div>
+            <div className="form-actions txn-actions">
+              <button type="submit" className="btn primary txn-submit">
+                {editingGoalId ? "Update goal" : "Create goal"}
+              </button>
+              <button type="button" className="btn ghost" onClick={closeComposer}>
                 Cancel
               </button>
-            ) : null}
-          </div>
-        </form>
-      </section>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
       <section className="section">
         <h2>Your goals</h2>
@@ -402,22 +400,6 @@ export function GoalsPage() {
                         <DatePicker
                           value={draft.date}
                           onChange={(date) => setDraft(g.id, { date })}
-                        />
-                      </label>
-                      <label>
-                        Category
-                        <PillSelect
-                          align="left"
-                          ariaLabel="Category"
-                          value={draft.category_id}
-                          onChange={(category_id) =>
-                            setDraft(g.id, { category_id })
-                          }
-                          options={categories.map((c) => ({
-                            value: String(c.id),
-                            label: c.name,
-                            swatch: c.color,
-                          }))}
                         />
                       </label>
                       <label>
