@@ -3,8 +3,7 @@ import { createContext, useContext } from "react";
 import { usernameToEmail, validatePassword, validateUsername } from "@f1nancer/domain";
 import type { Session } from "@supabase/supabase-js";
 import { isSyncConfigured, supabaseUrl } from "./config";
-import { supabase, SupabaseConnector } from "./connector";
-import { getPowerSync } from "./database";
+import { supabase } from "./supabaseClient";
 
 interface AuthContextValue {
   session: Session | null;
@@ -17,7 +16,6 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const connector = new SupabaseConnector();
 
 async function authUsername(action: "signin" | "signup", username: string, password: string) {
   const normalized = validateUsername(username);
@@ -44,6 +42,19 @@ async function authUsername(action: "signin" | "signup", username: string, passw
   if (error) throw new Error(error.message);
 }
 
+async function withPowerSync<T>(
+  fn: (api: {
+    getPowerSync: typeof import("./database").getPowerSync;
+    SupabaseConnector: typeof import("./powersyncConnector").SupabaseConnector;
+  }) => Promise<T> | T,
+): Promise<T> {
+  const [{ getPowerSync }, { SupabaseConnector }] = await Promise.all([
+    import("./database"),
+    import("./powersyncConnector"),
+  ]);
+  return fn({ getPowerSync, SupabaseConnector });
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,15 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [configured]);
 
   useEffect(() => {
-    if (!session) {
-      try {
-        void getPowerSync().disconnect();
-      } catch {
-        // Native DB may not be ready yet on cold start.
-      }
-      return;
-    }
-    void getPowerSync().connect(connector);
+    // Do not load native PowerSync just to disconnect on cold start / signed-out.
+    if (!session) return;
+    void withPowerSync(({ getPowerSync, SupabaseConnector }) => {
+      void getPowerSync().connect(new SupabaseConnector());
+    }).catch((err) => {
+      console.error("PowerSync connect failed", err);
+    });
   }, [session]);
 
   const signIn = useCallback(
@@ -85,7 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
   const signOut = useCallback(async () => {
-    await getPowerSync().disconnectAndClear();
+    await withPowerSync(async ({ getPowerSync }) => {
+      await getPowerSync().disconnectAndClear();
+    });
     await supabase.auth.signOut();
   }, []);
 

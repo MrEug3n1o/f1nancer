@@ -15,4 +15,31 @@ config.resolver.extraNodeModules = {
 };
 config.resolver.unstable_enableSymlinks = true;
 
+// PowerSync docs: avoid inlineRequires breaking the SDK class hierarchy.
+const previousGetTransformOptions = config.transformer?.getTransformOptions;
+config.transformer = {
+  ...config.transformer,
+  getTransformOptions: async () => {
+    const previous = previousGetTransformOptions
+      ? await previousGetTransformOptions()
+      : {};
+    return {
+      ...previous,
+      transform: {
+        ...(previous.transform || {}),
+        inlineRequires: {
+          ...((previous.transform && previous.transform.inlineRequires) || {}),
+          blockList: {
+            ...((previous.transform &&
+              previous.transform.inlineRequires &&
+              previous.transform.inlineRequires.blockList) ||
+              {}),
+            [require.resolve("@powersync/react-native")]: true,
+          },
+        },
+      },
+    };
+  },
+};
+
 module.exports = config;

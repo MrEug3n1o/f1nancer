@@ -1,11 +1,7 @@
-import { Component, type ErrorInfo, type ReactNode, useEffect, useState } from "react";
+import { Component, type ComponentType, type ErrorInfo, type ReactNode, useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { AuthProvider, useAuth } from "./src/sync/AuthProvider";
-import { AuthScreen } from "./src/screens/AuthScreen";
-import { MainScreen } from "./src/screens/MainScreen";
 import { colors } from "./src/screens/theme";
-import { getPowerSync, getPowerSyncInitError } from "./src/sync/database";
 
 class StartupErrorBoundary extends Component<
   { children: ReactNode },
@@ -34,52 +30,52 @@ class StartupErrorBoundary extends Component<
   }
 }
 
-function Gate() {
-  const { session, loading, configured } = useAuth();
-  const [dbReady, setDbReady] = useState(!configured);
-  const [dbError, setDbError] = useState<string | null>(null);
+/**
+ * Thin shell: no PowerSync / op-sqlite imports here.
+ * Native sync stack loads only after the first frame via dynamic import.
+ */
+export default function App() {
+  const [Root, setRoot] = useState<ComponentType | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!configured) {
-      setDbReady(true);
-      return;
-    }
-    try {
-      getPowerSync();
-      setDbReady(true);
-    } catch (err) {
-      setDbError(
-        getPowerSyncInitError()?.message ||
-          (err instanceof Error ? err.message : String(err)),
-      );
-    }
-  }, [configured]);
+    let cancelled = false;
+    void import("./src/RootApp")
+      .then((mod) => {
+        if (!cancelled) setRoot(() => mod.default);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  if (dbError) {
+  if (loadError) {
     return (
       <View style={styles.center}>
-        <Text style={styles.title}>Local database unavailable</Text>
-        <Text style={styles.body}>{dbError}</Text>
+        <StatusBar style="dark" />
+        <Text style={styles.title}>F1nancer failed to start</Text>
+        <Text style={styles.body}>{loadError}</Text>
       </View>
     );
   }
-  if (!dbReady || loading) {
+
+  if (!Root) {
     return (
       <View style={styles.center}>
+        <StatusBar style="dark" />
         <ActivityIndicator />
       </View>
     );
   }
-  return session ? <MainScreen /> : <AuthScreen />;
-}
 
-export default function App() {
   return (
     <StartupErrorBoundary>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <Gate />
-      </AuthProvider>
+      <Root />
     </StartupErrorBoundary>
   );
 }
