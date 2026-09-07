@@ -9,6 +9,7 @@ function disabled() {
 module.exports = {
   open: disabled,
   openSync: disabled,
+  getDylibPath: disabled,
   OPSQLite: {
     install() {
       return true;

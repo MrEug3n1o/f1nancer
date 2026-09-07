@@ -16,16 +16,6 @@ config.resolver.extraNodeModules = {
   "@op-engineering/op-sqlite": opSqliteStub,
 };
 config.resolver.unstable_enableSymlinks = true;
-const existingBlockList = config.resolver.blockList;
-config.resolver.blockList = [
-  /node_modules[\\/]@op-engineering[\\/]op-sqlite[\\/].*/,
-].concat(
-  Array.isArray(existingBlockList)
-    ? existingBlockList
-    : existingBlockList
-      ? [existingBlockList]
-      : [],
-);
 
 const previousGetTransformOptions = config.transformer?.getTransformOptions;
 config.transformer = {

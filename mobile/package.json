@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",
+    "@op-engineering/op-sqlite": "file:./stubs/op-sqlite",
     "@powersync/adapter-sql-js": "^0.0.22",
     "@powersync/common": "^2.2.0",
     "@powersync/react-native": "^2.2.0",
@@ -32,6 +33,6 @@
     "typescript": "~5.8.3"
   },
   "overrides": {
-    "@op-engineering/op-sqlite": "file:stubs/op-sqlite"
+    "@op-engineering/op-sqlite": "file:./stubs/op-sqlite"
   }
 }
