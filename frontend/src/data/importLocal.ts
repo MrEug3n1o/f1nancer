@@ -16,18 +16,50 @@ export async function fetchLocalExport(): Promise<LocalExportPayload | null> {
 }
 
 export async function cloudLooksEmpty(): Promise<boolean> {
-  const [txns, goals, deposits, credits] = await Promise.all([
-    handleGet("/transactions") as Promise<unknown[]>,
-    handleGet("/goals") as Promise<unknown[]>,
-    handleGet("/deposits") as Promise<unknown[]>,
-    handleGet("/credits-debts") as Promise<unknown[]>,
-  ]);
-  return (
-    txns.length === 0 &&
-    goals.length === 0 &&
-    deposits.length === 0 &&
-    credits.length === 0
-  );
+  try {
+    const [txns, goals, deposits, credits] = await Promise.all([
+      handleGet("/transactions") as Promise<unknown[]>,
+      handleGet("/goals") as Promise<unknown[]>,
+      handleGet("/deposits") as Promise<unknown[]>,
+      handleGet("/credits-debts") as Promise<unknown[]>,
+    ]);
+    return (
+      txns.length === 0 &&
+      goals.length === 0 &&
+      deposits.length === 0 &&
+      credits.length === 0
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Sign in to sync")) return false;
+    throw err;
+  }
+}
+
+const AUTO_IMPORT_KEY = "f1nancer.autoImportedLegacy";
+
+function hasLegacyRows(payload: LocalExportPayload | null): boolean {
+  return Boolean(payload?.transactions?.length || payload?.categories?.length);
+}
+
+/** One-shot import of leftover FastAPI SQLite into the signed-in PowerSync DB. */
+export async function maybeAutoImportLegacy(): Promise<boolean> {
+  try {
+    if (localStorage.getItem(AUTO_IMPORT_KEY) === "true") return false;
+    const payload = await fetchLocalExport();
+    if (!hasLegacyRows(payload) || !payload) return false;
+    if (!(await cloudLooksEmpty())) {
+      localStorage.setItem(AUTO_IMPORT_KEY, "true");
+      return false;
+    }
+    await importLocalPayload(payload);
+    localStorage.setItem(AUTO_IMPORT_KEY, "true");
+    return true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Sign in to sync")) return false;
+    throw err;
+  }
 }
 
 export async function importLocalPayload(payload: LocalExportPayload): Promise<void> {

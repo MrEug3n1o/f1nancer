@@ -1,5 +1,5 @@
 import { createAppSchema } from "@f1nancer/domain";
-import { column, Schema, Table } from "@powersync/react-native";
+import { column, Schema, Table } from "@powersync/common";
 
 export const AppSchema = createAppSchema({
   column: column as never,

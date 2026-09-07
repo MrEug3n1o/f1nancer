@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@azure/core-asynciterator-polyfill": "^1.0.2",
-    "@op-engineering/op-sqlite": "^18.1.4",
+    "@powersync/adapter-sql-js": "^0.0.22",
+    "@powersync/common": "^2.2.0",
     "@powersync/react-native": "^2.2.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@supabase/supabase-js": "^2.57.4",
@@ -29,5 +30,8 @@
     "@babel/plugin-transform-async-generator-functions": "7.28.0",
     "@types/react": "~19.0.10",
     "typescript": "~5.8.3"
+  },
+  "overrides": {
+    "@op-engineering/op-sqlite": "file:stubs/op-sqlite"
   }
 }

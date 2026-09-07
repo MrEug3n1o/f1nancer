@@ -16,6 +16,7 @@ import {
   IconWallet,
 } from "./NavIcons";
 import { ImportBanner } from "./ImportBanner";
+import { SyncBanner } from "./SyncBanner";
 
 const SIDEBAR_COLLAPSED_KEY = "f1nancer.sidebarCollapsed";
 
@@ -225,6 +226,7 @@ export function Layout({ children }: { children: ReactNode }) {
           ) : null}
         </header>
         <main className="content">
+          <SyncBanner />
           <ImportBanner />
           {children}
         </main>

@@ -3081,3 +3081,16 @@ textarea:focus {
   margin-bottom: 1rem;
 }
 
+.sync-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--error-border);
+  border-radius: var(--radius);
+  background: var(--error-bg);
+  margin-bottom: 1rem;
+}
+

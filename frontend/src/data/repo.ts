@@ -48,6 +48,10 @@ export function bindDataLayer(
   userId = uid;
 }
 
+export function isDataLayerBound(): boolean {
+  return Boolean(db && userId);
+}
+
 function requireDb() {
   if (!db || !userId) {
     throw new Error("Sign in to sync your data");

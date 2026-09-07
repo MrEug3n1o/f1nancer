@@ -34,6 +34,7 @@ function Gate() {
             import("./screens/MainScreen"),
           ]);
           const db = getPowerSync();
+          await db.waitForReady();
           await db.connect(new SupabaseConnector());
           if (!cancelled) {
             setMainScreen(() => main.MainScreen);

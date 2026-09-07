@@ -9,8 +9,10 @@ import {
 } from "react";
 import { usernameToEmail, validatePassword, validateUsername } from "@f1nancer/domain";
 import type { Session } from "@supabase/supabase-js";
+import { maybeAutoImportLegacy } from "../data/importLocal";
 import { bindDataLayer } from "../data/repo";
 import { isSyncConfigured, supabaseAnonKey, supabaseUrl } from "./config";
+import { formatSyncError, syncErrorFromStatus } from "./syncError";
 import { getSupabase } from "./supabaseClient";
 
 interface AuthContextValue {
@@ -18,6 +20,9 @@ interface AuthContextValue {
   username: string | null;
   loading: boolean;
   configured: boolean;
+  dbReady: boolean;
+  dbError: string | null;
+  syncError: string | null;
   signIn: (username: string, password: string) => Promise<void>;
   signUp: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -73,11 +78,15 @@ async function authUsername(action: "signin" | "signup", username: string, passw
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dbReady, setDbReady] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const configured = isSyncConfigured();
 
   useEffect(() => {
     if (!configured) {
       setLoading(false);
+      setDbReady(true);
       return;
     }
     const supabase = getSupabase();
@@ -100,19 +109,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session) {
       bindDataLayer(null, null);
+      setDbReady(true);
+      setDbError(null);
+      setSyncError(null);
       return;
     }
     let cancelled = false;
+    let unregister: (() => void) | undefined;
+    setDbReady(false);
+    setDbError(null);
+    setSyncError(null);
     void withPowerSync(async ({ getPowerSync, SupabaseConnector }) => {
       const db = getPowerSync();
       if (cancelled) return;
+      await db.waitForReady();
+      if (cancelled) return;
       bindDataLayer(db, session.user.id);
-      await db.connect(new SupabaseConnector());
+      unregister = db.registerListener({
+        statusChanged: (status) => {
+          const next = syncErrorFromStatus(status);
+          if (next) setSyncError(next);
+          else if (status.connected) setSyncError(null);
+        },
+      });
+      try {
+        await db.connect(new SupabaseConnector());
+      } catch (err) {
+        if (!cancelled) setSyncError(formatSyncError(err));
+      }
+      try {
+        await maybeAutoImportLegacy();
+      } catch (err) {
+        console.error("Legacy local import failed", err);
+      }
+      if (!cancelled) setDbReady(true);
     }).catch((err) => {
-      console.error("PowerSync connect failed", err);
+      if (cancelled) return;
+      setDbError(formatSyncError(err));
+      setDbReady(true);
     });
     return () => {
       cancelled = true;
+      unregister?.();
     };
   }, [session]);
 
@@ -145,7 +183,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, username, loading, configured, signIn, signUp, signOut }}
+      value={{
+        session,
+        username,
+        loading,
+        configured,
+        dbReady,
+        dbError,
+        syncError,
+        signIn,
+        signUp,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>

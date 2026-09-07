@@ -2,7 +2,7 @@ import {
   UpdateType,
   type AbstractPowerSyncDatabase,
   type PowerSyncBackendConnector,
-} from "@powersync/react-native";
+} from "@powersync/common";
 import { powerSyncUrl } from "./config";
 import { getSupabase } from "./supabaseClient";
 
@@ -18,7 +18,7 @@ function coerce(table: string, data: Record<string, unknown> | null | undefined)
   return next;
 }
 
-/** Import this only when PowerSync is needed — pulls in native op-sqlite. */
+/** Import this only when PowerSync is needed. */
 export class SupabaseConnector implements PowerSyncBackendConnector {
   async fetchCredentials() {
     const { data } = await getSupabase().auth.getSession();

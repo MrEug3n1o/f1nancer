@@ -5,24 +5,33 @@ import {
   importLocalPayload,
 } from "../data/importLocal";
 import { useApp } from "../context";
+import { useAuth } from "../sync/AuthProvider";
 
 const DISMISS_KEY = "f1nancer.importLegacyDismissed";
 
 export function ImportBanner() {
+  const { dbReady } = useAuth();
   const { refreshCurrencies, refreshSettings } = useApp();
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!dbReady) return;
     if (localStorage.getItem(DISMISS_KEY) === "true") return;
     void (async () => {
-      const payload = await fetchLocalExport();
-      if (!payload?.transactions?.length && !payload?.categories?.length) return;
-      if (!(await cloudLooksEmpty())) return;
-      setVisible(true);
+      try {
+        const payload = await fetchLocalExport();
+        if (!payload?.transactions?.length && !payload?.categories?.length) return;
+        if (!(await cloudLooksEmpty())) return;
+        setVisible(true);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("Sign in to sync")) return;
+        console.error("Import banner check failed", err);
+      }
     })();
-  }, []);
+  }, [dbReady]);
 
   if (!visible) return null;
 

@@ -37,11 +37,21 @@ function SignedInApp() {
 }
 
 function Gate() {
-  const { session, loading } = useAuth();
-  if (loading) {
+  const { session, loading, dbReady, dbError } = useAuth();
+  if (loading || (session && !dbReady)) {
     return (
       <div className="auth-shell">
         <p className="muted">Loading…</p>
+      </div>
+    );
+  }
+  if (session && dbError) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-card">
+          <h1>Local database unavailable</h1>
+          <p className="muted">{dbError}</p>
+        </div>
       </div>
     );
   }
