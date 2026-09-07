@@ -4,7 +4,7 @@ import { usernameToEmail, validatePassword, validateUsername } from "@f1nancer/d
 import type { Session } from "@supabase/supabase-js";
 import { isSyncConfigured, supabaseUrl } from "./config";
 import { supabase, SupabaseConnector } from "./connector";
-import { powerSync } from "./database";
+import { getPowerSync } from "./database";
 
 interface AuthContextValue {
   session: Session | null;
@@ -66,10 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session) {
-      void powerSync.disconnect();
+      try {
+        void getPowerSync().disconnect();
+      } catch {
+        // Native DB may not be ready yet on cold start.
+      }
       return;
     }
-    void powerSync.connect(connector);
+    void getPowerSync().connect(connector);
   }, [session]);
 
   const signIn = useCallback(
@@ -81,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
   const signOut = useCallback(async () => {
-    await powerSync.disconnectAndClear();
+    await getPowerSync().disconnectAndClear();
     await supabase.auth.signOut();
   }, []);
 

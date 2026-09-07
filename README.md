@@ -76,14 +76,16 @@ Push a `v*` tag or run the **App release** workflow (`workflow_dispatch`, [`.git
 
 Android CI needs GitHub secrets: `EXPO_TOKEN`, `EAS_PROJECT_ID`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_POWERSYNC_URL`. One-time local setup: `cd mobile && npx eas-cli login && npx eas-cli init`, paste the project id into `COMMITTED_EAS_PROJECT_ID` in [`mobile/app.config.js`](mobile/app.config.js) (or only use the `EAS_PROJECT_ID` secret), then run one interactive `npx eas-cli build -p android --profile apk` so EAS can create the Android keystore.
 
-## In-app updates (Mac & Windows)
+## In-app updates
 
-Settings → **App updates** checks [GitHub Releases](https://github.com/MrEug3n1o/f1nancer/releases) and installs the latest desktop build. No Git, Node.js, or Python is required on the laptop.
+**Mac & Windows:** Settings → **App updates** checks [GitHub Releases](https://github.com/MrEug3n1o/f1nancer/releases) and installs the latest desktop build. No Git, Node.js, or Python is required on the laptop.
 
 - **Windows:** downloads `F1nancer-<version>-setup.exe` and runs it silently into `%LOCALAPPDATA%\Programs\F1nancer`
 - **Mac:** downloads `F1nancer-<version>.dmg` and replaces the installed `F1nancer.app`
 
 Your data stays in the app data folder. A source checkout cannot self-install from Settings — use `desktop/build.sh` or `desktop/build.ps1` instead.
+
+**Android:** Account → **App updates** checks the same GitHub Releases feed for `F1nancer-<version>.apk`, downloads it, and opens the system installer. Confirm the Android install prompt (and allow installs from this app if asked). Local PowerSync data stays on the device.
 
 ## Desktop development (no packaging)
 

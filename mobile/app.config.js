@@ -47,6 +47,7 @@ const expoConfig = {
   android: {
     package: "app.f1nancer.mobile",
     versionCode: versionCodeFromSemver(version),
+    permissions: ["REQUEST_INSTALL_PACKAGES"],
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#0f1419",

@@ -16,6 +16,7 @@ import {
   todayISO,
 } from "../data/queries";
 import { useAuth } from "../sync/AuthProvider";
+import { AppUpdateCard } from "./AppUpdateCard";
 import { colors } from "./theme";
 
 type Tab = "home" | "txns" | "cats" | "account";
@@ -213,6 +214,7 @@ export function MainScreen() {
             <Text style={styles.muted}>
               Last write wins if this phone and desktop edit the same row offline.
             </Text>
+            <AppUpdateCard active={tab === "account"} />
             <Pressable style={styles.button} onPress={() => void signOut()}>
               <Text style={styles.buttonText}>Sign out and clear this device</Text>
             </Pressable>
