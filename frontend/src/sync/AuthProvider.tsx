@@ -10,9 +10,8 @@ import {
 import { usernameToEmail, validatePassword, validateUsername } from "@f1nancer/domain";
 import type { Session } from "@supabase/supabase-js";
 import { bindDataLayer } from "../data/repo";
-import { isSyncConfigured, supabaseUrl } from "./config";
-import { supabase, SupabaseConnector } from "./connector";
-import { powerSync } from "./database";
+import { isSyncConfigured, supabaseAnonKey, supabaseUrl } from "./config";
+import { getSupabase } from "./supabaseClient";
 
 interface AuthContextValue {
   session: Session | null;
@@ -26,15 +25,31 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const connector = new SupabaseConnector();
+async function withPowerSync<T>(
+  fn: (api: {
+    getPowerSync: typeof import("./database").getPowerSync;
+    SupabaseConnector: typeof import("./powersyncConnector").SupabaseConnector;
+  }) => Promise<T> | T,
+): Promise<T> {
+  const [{ getPowerSync }, { SupabaseConnector }] = await Promise.all([
+    import("./database"),
+    import("./powersyncConnector"),
+  ]);
+  return fn({ getPowerSync, SupabaseConnector });
+}
 
 async function authUsername(action: "signin" | "signup", username: string, password: string) {
   const normalized = validateUsername(username);
   validatePassword(password);
+  const supabase = getSupabase();
   const endpoint = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/auth-username`;
   const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
     body: JSON.stringify({ action, username: normalized, password }),
   });
   const body = await res.json().catch(() => ({}));
@@ -65,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    const supabase = getSupabase();
     let cancelled = false;
     void supabase.auth.getSession().then(({ data }) => {
       if (!cancelled) {
@@ -84,11 +100,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session) {
       bindDataLayer(null, null);
-      void powerSync.disconnect();
       return;
     }
-    bindDataLayer(powerSync, session.user.id);
-    void powerSync.connect(connector);
+    let cancelled = false;
+    void withPowerSync(async ({ getPowerSync, SupabaseConnector }) => {
+      const db = getPowerSync();
+      if (cancelled) return;
+      bindDataLayer(db, session.user.id);
+      await db.connect(new SupabaseConnector());
+    }).catch((err) => {
+      console.error("PowerSync connect failed", err);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [session]);
 
   const signIn = useCallback(async (username: string, password: string) => {
@@ -101,8 +126,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     bindDataLayer(null, null);
-    await powerSync.disconnectAndClear();
-    await supabase.auth.signOut();
+    try {
+      await withPowerSync(async ({ getPowerSync }) => {
+        await getPowerSync().disconnectAndClear();
+      });
+    } catch (err) {
+      console.error("PowerSync disconnect failed", err);
+    }
+    await getSupabase().auth.signOut();
   }, []);
 
   const username = useMemo(() => {

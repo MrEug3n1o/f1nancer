@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { createContext, useContext } from "react";
 import { usernameToEmail, validatePassword, validateUsername } from "@f1nancer/domain";
 import type { Session } from "@supabase/supabase-js";
-import { isSyncConfigured, supabaseUrl } from "./config";
-import { supabase } from "./supabaseClient";
+import { isSyncConfigured, supabaseAnonKey, supabaseUrl } from "./config";
+import { getSupabase, supabase } from "./supabaseClient";
 
 interface AuthContextValue {
   session: Session | null;
@@ -23,7 +23,11 @@ async function authUsername(action: "signin" | "signup", username: string, passw
   const endpoint = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/auth-username`;
   const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
     body: JSON.stringify({ action, username: normalized, password }),
   });
   const body = await res.json().catch(() => ({}));
@@ -75,16 +79,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, [configured]);
 
-  useEffect(() => {
-    // Do not load native PowerSync just to disconnect on cold start / signed-out.
-    if (!session) return;
-    void withPowerSync(({ getPowerSync, SupabaseConnector }) => {
-      void getPowerSync().connect(new SupabaseConnector());
-    }).catch((err) => {
-      console.error("PowerSync connect failed", err);
-    });
-  }, [session]);
-
   const signIn = useCallback(
     (username: string, password: string) => authUsername("signin", username, password),
     [],
@@ -94,10 +88,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
   const signOut = useCallback(async () => {
-    await withPowerSync(async ({ getPowerSync }) => {
-      await getPowerSync().disconnectAndClear();
-    });
-    await supabase.auth.signOut();
+    try {
+      await withPowerSync(async ({ getPowerSync }) => {
+        await getPowerSync().disconnectAndClear();
+      });
+    } catch (err) {
+      console.error("PowerSync disconnect failed", err);
+    }
+    await getSupabase().auth.signOut();
   }, []);
 
   const username = useMemo(() => {

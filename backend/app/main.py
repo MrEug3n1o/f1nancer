@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -52,6 +52,15 @@ app.add_middleware(
 
 app.include_router(system.router, prefix="/api")
 app.include_router(local_export.router, prefix="/api")
+
+
+@app.middleware("http")
+async def isolation_headers(_request: Request, call_next):
+    """COOP/COEP so packaged WebView can use PowerSync wa-sqlite workers."""
+    response = await call_next(_request)
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
+    return response
 
 
 @app.get("/health")

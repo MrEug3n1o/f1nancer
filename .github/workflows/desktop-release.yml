@@ -33,7 +33,17 @@ jobs:
 
       - name: Build Windows installer
         shell: pwsh
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          VITE_POWERSYNC_URL: ${{ secrets.EXPO_PUBLIC_POWERSYNC_URL }}
         run: |
+          foreach ($key in @("VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_POWERSYNC_URL")) {
+            $value = [Environment]::GetEnvironmentVariable($key)
+            if ([string]::IsNullOrWhiteSpace($value)) {
+              throw "Missing required secret/env: $key"
+            }
+          }
           $env:MAKE_INSTALLER = "1"
           $env:MAKE_ZIP = "0"
           ./desktop/build.ps1
@@ -71,7 +81,17 @@ jobs:
         env:
           INSTALL: "0"
           MAKE_DMG: "1"
+          VITE_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          VITE_POWERSYNC_URL: ${{ secrets.EXPO_PUBLIC_POWERSYNC_URL }}
         run: |
+          set -euo pipefail
+          for key in VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY VITE_POWERSYNC_URL; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "Missing required secret/env: $key" >&2
+              exit 1
+            fi
+          done
           chmod +x desktop/build.sh desktop/install.sh desktop/make_dmg.sh
           ./desktop/build.sh
 

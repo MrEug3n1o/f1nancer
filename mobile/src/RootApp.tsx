@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, InteractionManager, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./sync/AuthProvider";
 import { AuthScreen } from "./screens/AuthScreen";
@@ -25,25 +25,30 @@ function Gate() {
 
     let cancelled = false;
     setDbReady(false);
-    void (async () => {
-      try {
-        const [{ getPowerSync }, main] = await Promise.all([
-          import("./sync/database"),
-          import("./screens/MainScreen"),
-        ]);
-        getPowerSync();
-        if (!cancelled) {
-          setMainScreen(() => main.MainScreen);
-          setDbReady(true);
+    const task = InteractionManager.runAfterInteractions(() => {
+      void (async () => {
+        try {
+          const [{ getPowerSync }, { SupabaseConnector }, main] = await Promise.all([
+            import("./sync/database"),
+            import("./sync/powersyncConnector"),
+            import("./screens/MainScreen"),
+          ]);
+          const db = getPowerSync();
+          await db.connect(new SupabaseConnector());
+          if (!cancelled) {
+            setMainScreen(() => main.MainScreen);
+            setDbReady(true);
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setDbError(err instanceof Error ? err.message : String(err));
+          }
         }
-      } catch (err) {
-        if (!cancelled) {
-          setDbError(err instanceof Error ? err.message : String(err));
-        }
-      }
-    })();
+      })();
+    });
     return () => {
       cancelled = true;
+      task.cancel();
     };
   }, [configured, session]);
 

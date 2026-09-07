@@ -3,6 +3,7 @@ import {
   type AbstractPowerSyncDatabase,
   type PowerSyncBackendConnector,
 } from "@powersync/react-native";
+import { powerSyncUrl } from "./config";
 import { getSupabase } from "./supabaseClient";
 
 function coerce(table: string, data: Record<string, unknown> | null | undefined) {
@@ -23,7 +24,7 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     const { data } = await getSupabase().auth.getSession();
     if (!data.session) throw new Error("Not signed in");
     return {
-      endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL as string,
+      endpoint: powerSyncUrl,
       token: data.session.access_token,
     };
   }

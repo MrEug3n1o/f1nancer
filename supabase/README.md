@@ -20,7 +20,7 @@ supabase functions deploy process-recurring
 
 1. Create an instance at [PowerSync](https://www.powersync.com/) and connect it to the Supabase database.
 2. Use the `powersync` publication created by the migration.
-3. Enable **Supabase Auth** as the JWT audience.
+3. Client Auth: enable **Use Supabase Auth**, then Save and Deploy. The JWT audience must be `authenticated` (Supabase’s access-token `aud`). If PowerSync returns `PSYNC_S2105` / `Unexpected "aud" claim value: "authenticated"`, the instance is still on custom JWT auth — add `authenticated` to JWT Audience or switch to Supabase Auth and redeploy.
 4. Deploy [`sync-rules.yaml`](sync-rules.yaml).
 
 ## 3. Client env

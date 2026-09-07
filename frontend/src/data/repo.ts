@@ -33,7 +33,7 @@ import {
 import type { AbstractPowerSyncDatabase } from "@powersync/web";
 import { ISO_CURRENCY_CATALOG } from "../currencyCatalog";
 import { DEFAULT_WIDGET_LAYOUT } from "../types";
-import { supabase } from "../sync/connector";
+import { getSupabase } from "../sync/supabaseClient";
 
 type Row = Record<string, unknown>;
 
@@ -798,7 +798,7 @@ export async function handlePost(path: string, body: unknown): Promise<unknown> 
     return rules.find((r) => r.id === id);
   }
   if (p === "/recurring/process") {
-    const { error, data } = await supabase.rpc("process_due_recurring_rules");
+    const { error, data } = await getSupabase().rpc("process_due_recurring_rules");
     if (error) {
       return { created: 0, offline: true };
     }
