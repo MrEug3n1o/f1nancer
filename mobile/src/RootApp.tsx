@@ -12,8 +12,11 @@ function Gate() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
 
+  const userId = session?.user.id ?? null;
+
+  // Connect once per signed-in user. Token refresh must not remount MainScreen.
   useEffect(() => {
-    if (!session) {
+    if (!userId) {
       setMainScreen(null);
       setDbReady(true);
       setDbError(null);
@@ -52,7 +55,7 @@ function Gate() {
       cancelled = true;
       task.cancel();
     };
-  }, [configured, session]);
+  }, [configured, userId]);
 
   if (dbError) {
     return (

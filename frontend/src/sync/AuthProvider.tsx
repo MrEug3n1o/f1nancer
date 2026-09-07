@@ -111,8 +111,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [configured]);
 
+  const userId = session?.user.id ?? null;
+
+  // Connect once per signed-in user. Token refresh replaces `session` but must not
+  // flip dbReady / remount the app (that feels like a logout).
   useEffect(() => {
-    if (!session) {
+    if (!userId) {
       bindDataLayer(null, null);
       setDbReady(true);
       setDbError(null);
@@ -129,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       await db.waitForReady();
       if (cancelled) return;
-      bindDataLayer(db, session.user.id);
+      bindDataLayer(db, userId);
       unregister = db.registerListener({
         statusChanged: (status) => {
           const next = syncErrorFromStatus(status);
@@ -157,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       unregister?.();
     };
-  }, [session]);
+  }, [userId]);
 
   const signIn = useCallback(async (username: string, password: string) => {
     await authUsername("signin", username, password);

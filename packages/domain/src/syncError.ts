@@ -48,7 +48,7 @@ export function formatSyncError(err: unknown): string {
     msg.includes('Unexpected "aud" claim') ||
     msg.includes("Unexpected 'aud' claim")
   ) {
-    return 'Cloud sync rejected this login token. In the PowerSync Dashboard open Client Auth, enable “Use Supabase Auth” (audience authenticated), then Save and Deploy.';
+    return 'Cloud sync rejected this login token. In the PowerSync Dashboard open Client Auth, add JWT Audience “authenticated” (and enable Use Supabase Auth if needed), then Save and Deploy.';
   }
   return msg || "Cloud sync is unavailable.";
 }
