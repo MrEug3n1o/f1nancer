@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1.13"
+  #define MyAppVersion "0.1.14"
 #endif
 #define MyAppName "F1nancer"
 #define MyAppPublisher "Yevhenii Dyl"
