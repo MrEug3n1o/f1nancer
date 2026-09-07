@@ -587,12 +587,25 @@ def _windows_powershell() -> str:
 
 
 def _mac_install_dir() -> Path:
+    """Return the .app bundle path that should receive the update."""
+    preferred = Path("/Applications/F1nancer.app")
+    home_apps = Path.home() / "Applications" / "F1nancer.app"
+
     if getattr(sys, "frozen", False):
         exe = Path(sys.executable).resolve()
         # F1nancer.app/Contents/MacOS/F1nancer
         if exe.parent.name == "MacOS" and exe.parent.parent.name == "Contents":
-            return exe.parent.parent.parent
-    return Path.home() / "Applications" / "F1nancer.app"
+            running = exe.parent.parent.parent
+            # Never replace an app running from a mounted DMG / volume.
+            if "Volumes" in running.parts:
+                if preferred.is_dir():
+                    return preferred
+                return home_apps
+            return running
+
+    if preferred.is_dir():
+        return preferred
+    return home_apps
 
 
 def _apply_update_script_name() -> str:
@@ -681,12 +694,24 @@ def relaunch_updated_app() -> dict:
         dest = _mac_install_dir()
         with open(log_file, "a", encoding="utf-8") as log:
             log.write(f"\n--- relaunch pid={pid} pkg={package} dest={dest} ---\n")
-            subprocess.Popen(
-                ["/bin/bash", str(helper), str(package), str(pid), str(dest)],
-                start_new_session=True,
-                env=_spawn_env(),
-                stdout=log,
-                stderr=log,
+            log.flush()
+        # Do not inherit the log FD — apply_update.sh opens its own log via exec.
+        # Closing this handle after Popen previously broke some helper startups.
+        proc = subprocess.Popen(
+            ["/bin/bash", str(helper), str(package), str(pid), str(dest)],
+            start_new_session=True,
+            env=_spawn_env(),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            cwd=str(DATA_DIR),
+        )
+        time.sleep(0.4)
+        if proc.poll() is not None:
+            raise RuntimeError(
+                f"Update helper exited immediately with code {proc.returncode}. "
+                f"See {log_file}"
             )
 
     def _exit_soon() -> None:
