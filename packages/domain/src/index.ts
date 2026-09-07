@@ -5,4 +5,5 @@ export * from "./dates";
 export * from "./finance";
 export * from "./money";
 export * from "./schema";
+export * from "./syncError";
 export * from "./types";

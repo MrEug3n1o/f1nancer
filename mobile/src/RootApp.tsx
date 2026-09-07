@@ -1,3 +1,4 @@
+import { formatSyncError } from "@f1nancer/domain";
 import { useEffect, useState, type ComponentType } from "react";
 import { ActivityIndicator, InteractionManager, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -42,7 +43,7 @@ function Gate() {
           }
         } catch (err) {
           if (!cancelled) {
-            setDbError(err instanceof Error ? err.message : String(err));
+            setDbError(formatSyncError(err));
           }
         }
       })();

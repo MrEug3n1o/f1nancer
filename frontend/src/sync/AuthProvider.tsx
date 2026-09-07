@@ -7,12 +7,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { usernameToEmail, validatePassword, validateUsername } from "@f1nancer/domain";
+import {
+  formatSyncError,
+  syncErrorFromStatus,
+  usernameToEmail,
+  validatePassword,
+  validateUsername,
+} from "@f1nancer/domain";
 import type { Session } from "@supabase/supabase-js";
 import { maybeAutoImportLegacy } from "../data/importLocal";
 import { bindDataLayer } from "../data/repo";
 import { isSyncConfigured, supabaseAnonKey, supabaseUrl } from "./config";
-import { formatSyncError, syncErrorFromStatus } from "./syncError";
 import { getSupabase } from "./supabaseClient";
 
 interface AuthContextValue {

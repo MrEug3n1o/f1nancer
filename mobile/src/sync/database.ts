@@ -1,6 +1,7 @@
-import { PowerSyncDatabase } from "@powersync/react-native";
 import { SQLJSOpenFactory, type SQLJSPersister } from "@powersync/adapter-sql-js";
 import * as FileSystem from "expo-file-system";
+import { formatSyncError } from "@f1nancer/domain";
+import { JsPowerSyncDatabase } from "./JsPowerSyncDatabase";
 import { AppSchema } from "./schema";
 
 const DB_FILENAME = "f1nancer.sqlite";
@@ -30,18 +31,18 @@ function createSqlJsPersister(dbFilename: string): SQLJSPersister {
   };
 }
 
-let _powerSync: PowerSyncDatabase | null = null;
+let _powerSync: JsPowerSyncDatabase | null = null;
 let _initError: Error | null = null;
 
 export function getPowerSyncInitError(): Error | null {
   return _initError;
 }
 
-export function getPowerSync(): PowerSyncDatabase {
+export function getPowerSync(): JsPowerSyncDatabase {
   if (_initError) throw _initError;
   if (_powerSync) return _powerSync;
   try {
-    _powerSync = new PowerSyncDatabase({
+    _powerSync = new JsPowerSyncDatabase({
       schema: AppSchema,
       factory: new SQLJSOpenFactory({
         dbFilename: DB_FILENAME,
@@ -50,13 +51,13 @@ export function getPowerSync(): PowerSyncDatabase {
     });
     return _powerSync;
   } catch (err) {
-    _initError = err instanceof Error ? err : new Error(String(err));
+    _initError = err instanceof Error ? err : new Error(formatSyncError(err));
     throw _initError;
   }
 }
 
 /** Lazy singleton — constructed after login, using sql.js (no native SQLite). */
-export const powerSync = new Proxy({} as PowerSyncDatabase, {
+export const powerSync = new Proxy({} as JsPowerSyncDatabase, {
   get(_target, prop, receiver) {
     const db = getPowerSync();
     const value = Reflect.get(db, prop, receiver);

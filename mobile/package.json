@@ -15,6 +15,7 @@
     "@powersync/adapter-sql-js": "^0.0.22",
     "@powersync/common": "^2.2.0",
     "@powersync/react-native": "^2.2.0",
+    "@powersync/shared-internals": "1.2.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@supabase/supabase-js": "^2.57.4",
     "expo": "~53.0.22",

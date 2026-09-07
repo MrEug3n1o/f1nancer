@@ -1,0 +1,56 @@
+import {
+  SyncStreamConnectionMethod,
+  type DBAdapter,
+  type PowerSyncBackendConnector,
+} from "@powersync/common";
+import {
+  BasePowerSyncDatabase,
+  openDatabase,
+  type CreateSyncImplementationOptions,
+} from "@powersync/shared-internals";
+import { ReactNativeBucketStorageAdapter } from "@powersync/react-native/lib/sync/bucket/ReactNativeBucketStorageAdapter";
+import { defaultFetchImplementation } from "@powersync/react-native/lib/sync/stream/fetch";
+import { ReactNativeRemote } from "@powersync/react-native/lib/sync/stream/ReactNativeRemote";
+import { ReactNativeStreamingSyncImplementation } from "@powersync/react-native/lib/sync/stream/ReactNativeStreamingSyncImplementation";
+
+/**
+ * PowerSync client that never loads the op-sqlite adapter.
+ * Native JSI install() in @op-engineering/op-sqlite aborts the Android process.
+ */
+export class JsPowerSyncDatabase extends BasePowerSyncDatabase {
+  async _initialize(): Promise<void> {}
+
+  protected override openDBAdapter(): DBAdapter {
+    return openDatabase(this.options, () => {
+      throw new Error("F1nancer requires a sql.js factory; native SQLite is disabled");
+    });
+  }
+
+  protected override generateBucketStorageAdapter() {
+    return new ReactNativeBucketStorageAdapter(this.database, this.logger);
+  }
+
+  protected override generateSyncStreamImplementation(
+    connector: PowerSyncBackendConnector,
+    options: CreateSyncImplementationOptions,
+  ) {
+    const remote = new ReactNativeRemote(
+      connector,
+      this.logger,
+      (this.options as { remote?: object }).remote,
+    );
+    return new ReactNativeStreamingSyncImplementation({
+      ...this.commonSyncOptions(connector, options),
+      remote,
+    });
+  }
+
+  protected override get defaultConnectionMethod(): SyncStreamConnectionMethod {
+    const fetch =
+      (this.options as { remote?: { fetchImplementation?: ReturnType<typeof defaultFetchImplementation> } })
+        .remote?.fetchImplementation ?? defaultFetchImplementation(this.logger);
+    return fetch.supportsStreams
+      ? SyncStreamConnectionMethod.HTTP
+      : SyncStreamConnectionMethod.WEB_SOCKET;
+  }
+}

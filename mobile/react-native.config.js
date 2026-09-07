@@ -6,5 +6,11 @@ module.exports = {
         ios: null,
       },
     },
+    "@powersync/react-native": {
+      platforms: {
+        android: null,
+        ios: null,
+      },
+    },
   },
 };
