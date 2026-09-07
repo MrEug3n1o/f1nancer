@@ -4,6 +4,12 @@ const { getDefaultConfig } = require("expo/metro-config");
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, "..");
 const opSqliteStub = path.resolve(projectRoot, "stubs/op-sqlite");
+const nodeBuiltinStubs = {
+  fs: path.resolve(projectRoot, "stubs/node-fs.js"),
+  crypto: path.resolve(projectRoot, "stubs/node-crypto.js"),
+  "node:fs": path.resolve(projectRoot, "stubs/node-fs.js"),
+  "node:crypto": path.resolve(projectRoot, "stubs/node-crypto.js"),
+};
 
 const config = getDefaultConfig(projectRoot);
 config.watchFolders = [workspaceRoot];
@@ -14,8 +20,20 @@ config.resolver.nodeModulesPaths = [
 config.resolver.extraNodeModules = {
   "@f1nancer/domain": path.resolve(workspaceRoot, "packages/domain/src"),
   "@op-engineering/op-sqlite": opSqliteStub,
+  ...nodeBuiltinStubs,
 };
 config.resolver.unstable_enableSymlinks = true;
+const defaultResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  const stub = nodeBuiltinStubs[moduleName];
+  if (stub) {
+    return { type: "sourceFile", filePath: stub };
+  }
+  if (defaultResolveRequest) {
+    return defaultResolveRequest(context, moduleName, platform);
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
 
 const previousGetTransformOptions = config.transformer?.getTransformOptions;
 config.transformer = {

@@ -172,12 +172,16 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
-          eas build \
+          if ! eas build \
             --platform android \
             --profile apk \
             --non-interactive \
             --wait \
-            --json > eas-build.json
+            --json > eas-build.json; then
+            echo "EAS build failed. JSON output:" >&2
+            cat eas-build.json >&2 || true
+            exit 1
+          fi
           apk_url="$(node -e '
             const builds = JSON.parse(require("fs").readFileSync("eas-build.json", "utf8"));
             const build = Array.isArray(builds) ? builds[0] : builds;
