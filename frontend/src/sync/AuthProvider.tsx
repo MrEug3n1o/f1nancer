@@ -13,6 +13,7 @@ import {
   usernameToEmail,
   validatePassword,
   validateUsername,
+  type SyncStatusError,
 } from "@f1nancer/domain";
 import type { Session } from "@supabase/supabase-js";
 import { maybeAutoImportLegacy } from "../data/importLocal";
@@ -27,7 +28,7 @@ interface AuthContextValue {
   configured: boolean;
   dbReady: boolean;
   dbError: string | null;
-  syncError: string | null;
+  syncError: SyncStatusError | null;
   signIn: (username: string, password: string) => Promise<void>;
   signUp: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -85,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<SyncStatusError | null>(null);
   const configured = isSyncConfigured();
 
   useEffect(() => {
@@ -145,7 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await db.connect(new SupabaseConnector());
         if (!cancelled) await db.waitForFirstSync();
       } catch (err) {
-        if (!cancelled) setSyncError(formatSyncError(err));
+        if (!cancelled) {
+          setSyncError({ message: formatSyncError(err), kind: "download" });
+        }
       }
       try {
         await maybeAutoImportLegacy();

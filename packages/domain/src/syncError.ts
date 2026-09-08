@@ -69,9 +69,23 @@ export function formatSyncError(err: unknown): string {
   return msg || "Cloud sync is unavailable.";
 }
 
+export type SyncErrorKind = "upload" | "download";
+
+export type SyncStatusError = {
+  message: string;
+  kind: SyncErrorKind;
+};
+
 export function syncErrorFromStatus(status: {
   dataFlowStatus?: { downloadError?: unknown; uploadError?: unknown };
-}): string | null {
-  const err = status.dataFlowStatus?.downloadError ?? status.dataFlowStatus?.uploadError;
-  return err ? formatSyncError(err) : null;
+}): SyncStatusError | null {
+  const downloadError = status.dataFlowStatus?.downloadError;
+  const uploadError = status.dataFlowStatus?.uploadError;
+  if (downloadError) {
+    return { message: formatSyncError(downloadError), kind: "download" };
+  }
+  if (uploadError) {
+    return { message: formatSyncError(uploadError), kind: "upload" };
+  }
+  return null;
 }
