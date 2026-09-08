@@ -14,15 +14,15 @@ import { ReactNativeRemote } from "@powersync/react-native/lib/sync/stream/React
 import { ReactNativeStreamingSyncImplementation } from "@powersync/react-native/lib/sync/stream/ReactNativeStreamingSyncImplementation";
 
 /**
- * PowerSync client that never loads the op-sqlite adapter.
- * Native JSI install() in @op-engineering/op-sqlite aborts the Android process.
+ * PowerSync client for Expo Go: uses a sql.js factory and never loads the
+ * native op-sqlite adapter (JSI install is unavailable in Expo Go).
  */
 export class JsPowerSyncDatabase extends BasePowerSyncDatabase {
   async _initialize(): Promise<void> {}
 
   protected override openDBAdapter(): DBAdapter {
-    return openDatabase(this.options, () => {
-      throw new Error("F1nancer requires a sql.js factory; native SQLite is disabled");
+    return openDatabase(this.options as never, () => {
+      throw new Error("F1nancer Expo Go requires a sql.js factory; native SQLite is unavailable");
     });
   }
 

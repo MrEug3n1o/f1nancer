@@ -3,7 +3,6 @@ const { getDefaultConfig } = require("expo/metro-config");
 
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, "..");
-const opSqliteStub = path.resolve(projectRoot, "stubs/op-sqlite");
 const nodeBuiltinStubs = {
   fs: path.resolve(projectRoot, "stubs/node-fs.js"),
   crypto: path.resolve(projectRoot, "stubs/node-crypto.js"),
@@ -19,7 +18,6 @@ config.resolver.nodeModulesPaths = [
 ];
 config.resolver.extraNodeModules = {
   "@f1nancer/domain": path.resolve(workspaceRoot, "packages/domain/src"),
-  "@op-engineering/op-sqlite": opSqliteStub,
   ...nodeBuiltinStubs,
 };
 config.resolver.unstable_enableSymlinks = true;

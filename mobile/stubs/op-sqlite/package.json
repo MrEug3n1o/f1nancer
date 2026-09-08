@@ -1,7 +1,0 @@
-{
-  "name": "@op-engineering/op-sqlite",
-  "version": "18.0.0",
-  "description": "Stub: F1nancer uses sql.js instead of native op-sqlite.",
-  "main": "index.js",
-  "react-native": "index.js"
-}

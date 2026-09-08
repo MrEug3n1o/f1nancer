@@ -1,54 +1,32 @@
-import { SQLJSOpenFactory, type SQLJSPersister } from "@powersync/adapter-sql-js";
-import * as FileSystem from "expo-file-system";
+import type { AbstractPowerSyncDatabase } from "@powersync/common";
+import Constants from "expo-constants";
 import { formatSyncError } from "@f1nancer/domain";
-import { JsPowerSyncDatabase } from "./JsPowerSyncDatabase";
-import { AppSchema } from "./schema";
 
-const DB_FILENAME = "f1nancer.sqlite";
-
-function createSqlJsPersister(dbFilename: string): SQLJSPersister {
-  const dbPath = `${FileSystem.documentDirectory ?? ""}${dbFilename}`;
-  return {
-    async readFile() {
-      try {
-        const info = await FileSystem.getInfoAsync(dbPath);
-        if (!info.exists) return null;
-        const result = await FileSystem.readAsStringAsync(dbPath, { encoding: "base64" });
-        const binary = atob(result);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        return bytes;
-      } catch (err) {
-        console.error("sql.js read failed", err);
-        return null;
-      }
-    },
-    async writeFile(data) {
-      const uint8Array = new Uint8Array(data);
-      const binary = Array.from(uint8Array, (byte) => String.fromCharCode(byte)).join("");
-      await FileSystem.writeAsStringAsync(dbPath, btoa(binary), { encoding: "base64" });
-    },
-  };
-}
-
-let _powerSync: JsPowerSyncDatabase | null = null;
+let _powerSync: AbstractPowerSyncDatabase | null = null;
 let _initError: Error | null = null;
+
+function isExpoGo(): boolean {
+  return Constants.executionEnvironment === "storeClient";
+}
 
 export function getPowerSyncInitError(): Error | null {
   return _initError;
 }
 
-export function getPowerSync(): JsPowerSyncDatabase {
+export function getPowerSync(): AbstractPowerSyncDatabase {
   if (_initError) throw _initError;
   if (_powerSync) return _powerSync;
   try {
-    _powerSync = new JsPowerSyncDatabase({
-      schema: AppSchema,
-      factory: new SQLJSOpenFactory({
-        dbFilename: DB_FILENAME,
-        persister: createSqlJsPersister(DB_FILENAME),
-      }),
-    });
+    if (isExpoGo()) {
+      // Dynamic require so Expo Go never loads native PowerSyncDatabase / op-sqlite JSI.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { createSqlJsPowerSync } = require("./databaseSqlJs") as typeof import("./databaseSqlJs");
+      _powerSync = createSqlJsPowerSync();
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { createNativePowerSync } = require("./databaseNative") as typeof import("./databaseNative");
+      _powerSync = createNativePowerSync();
+    }
     return _powerSync;
   } catch (err) {
     _initError = err instanceof Error ? err : new Error(formatSyncError(err));
@@ -56,8 +34,8 @@ export function getPowerSync(): JsPowerSyncDatabase {
   }
 }
 
-/** Lazy singleton — constructed after login, using sql.js (no native SQLite). */
-export const powerSync = new Proxy({} as JsPowerSyncDatabase, {
+/** Lazy singleton — sql.js in Expo Go, native SQLite in EAS/production. */
+export const powerSync = new Proxy({} as AbstractPowerSyncDatabase, {
   get(_target, prop, receiver) {
     const db = getPowerSync();
     const value = Reflect.get(db, prop, receiver);

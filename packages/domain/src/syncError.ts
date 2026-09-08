@@ -76,15 +76,20 @@ export type SyncStatusError = {
   kind: SyncErrorKind;
 };
 
+function isTransientSyncError(err: unknown): boolean {
+  const msg = extractSyncErrorText(err);
+  return msg.includes("No iteration is active");
+}
+
 export function syncErrorFromStatus(status: {
   dataFlowStatus?: { downloadError?: unknown; uploadError?: unknown };
 }): SyncStatusError | null {
   const downloadError = status.dataFlowStatus?.downloadError;
   const uploadError = status.dataFlowStatus?.uploadError;
-  if (downloadError) {
+  if (downloadError && !isTransientSyncError(downloadError)) {
     return { message: formatSyncError(downloadError), kind: "download" };
   }
-  if (uploadError) {
+  if (uploadError && !isTransientSyncError(uploadError)) {
     return { message: formatSyncError(uploadError), kind: "upload" };
   }
   return null;

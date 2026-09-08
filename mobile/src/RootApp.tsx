@@ -45,9 +45,7 @@ function Gate() {
           await db.waitForReady();
           unregister = db.registerListener({
             statusChanged: (status) => {
-              const next = syncErrorFromStatus(status);
-              if (next) setSyncError(next);
-              else if (status.connected) setSyncError(null);
+              setSyncError(syncErrorFromStatus(status));
             },
           });
           await db.connect(new SupabaseConnector());
