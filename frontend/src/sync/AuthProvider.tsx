@@ -143,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       try {
         await db.connect(new SupabaseConnector());
+        if (!cancelled) await db.waitForFirstSync();
       } catch (err) {
         if (!cancelled) setSyncError(formatSyncError(err));
       }

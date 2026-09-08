@@ -72,3 +72,9 @@ export const SYNCED_TABLES = [
 ] as const;
 
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
+
+export function asSyncedTable(table: string): SyncedTable | null {
+  return (SYNCED_TABLES as readonly string[]).includes(table)
+    ? (table as SyncedTable)
+    : null;
+}

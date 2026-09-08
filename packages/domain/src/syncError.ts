@@ -41,6 +41,19 @@ function extractSyncErrorText(err: unknown): string {
   return String(err ?? "");
 }
 
+export function isUniqueConstraintError(err: unknown): boolean {
+  if (err && typeof err === "object") {
+    const code = (err as { code?: unknown }).code;
+    if (code === "23505" || code === 23505) return true;
+  }
+  const msg = extractSyncErrorText(err);
+  return (
+    msg.includes("23505") ||
+    msg.includes("duplicate key") ||
+    msg.includes("unique constraint")
+  );
+}
+
 export function formatSyncError(err: unknown): string {
   const msg = extractSyncErrorText(err);
   if (
@@ -49,6 +62,9 @@ export function formatSyncError(err: unknown): string {
     msg.includes("Unexpected 'aud' claim")
   ) {
     return 'Cloud sync rejected this login token. In the PowerSync Dashboard open Client Auth, add JWT Audience “authenticated” (and enable Use Supabase Auth if needed), then Save and Deploy.';
+  }
+  if (isUniqueConstraintError(err)) {
+    return "Cloud sync hit a duplicate of data already in the cloud. Retrying with the cloud copy.";
   }
   return msg || "Cloud sync is unavailable.";
 }

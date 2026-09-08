@@ -564,6 +564,11 @@ export async function handlePost(path: string, body: unknown): Promise<unknown> 
   if (p === "/currencies") {
     const code = String(payload.code || "").trim().toUpperCase();
     if (code.length !== 3) throw new Error("Currency code must be 3 letters");
+    const existing = await one(
+      "SELECT * FROM currencies WHERE user_id = ? AND code = ?",
+      [uid, code],
+    );
+    if (existing) return mapCurrency(existing);
     const name =
       String(payload.name || "") ||
       ISO_CURRENCY_CATALOG.find((c) => c.code === code)?.name ||

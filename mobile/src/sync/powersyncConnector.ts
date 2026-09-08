@@ -1,3 +1,4 @@
+import { asSyncedTable, isUniqueConstraintError } from "@f1nancer/domain";
 import {
   UpdateType,
   type AbstractPowerSyncDatabase,
@@ -44,7 +45,16 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         } else if (op.op === UpdateType.DELETE) {
           ({ error } = await table.delete().eq("id", op.id));
         }
-        if (error) throw error;
+        if (error) {
+          if (op.op === UpdateType.PUT && isUniqueConstraintError(error)) {
+            const tableName = asSyncedTable(op.table);
+            if (tableName) {
+              await database.execute(`DELETE FROM ${tableName} WHERE id = ?`, [op.id]);
+            }
+            continue;
+          }
+          throw error;
+        }
       }
       await transaction.complete();
     } catch (err) {
