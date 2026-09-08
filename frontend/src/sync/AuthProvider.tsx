@@ -174,6 +174,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     bindDataLayer(null, null);
     try {
+      localStorage.removeItem("f1nancer.autoImportedLegacy");
+    } catch {
+      /* ignore */
+    }
+    try {
       await withPowerSync(async ({ getPowerSync }) => {
         await getPowerSync().disconnectAndClear();
       });

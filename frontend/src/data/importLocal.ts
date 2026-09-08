@@ -42,16 +42,20 @@ function hasLegacyRows(payload: LocalExportPayload | null): boolean {
   return Boolean(payload?.transactions?.length || payload?.categories?.length);
 }
 
-/** One-shot import of leftover FastAPI SQLite into the signed-in PowerSync DB. */
+/**
+ * Import leftover FastAPI SQLite into an empty PowerSync DB.
+ * Runs after sign-in when the local synced DB has no finance rows yet
+ * (e.g. fresh device, or after sign-out cleared local data while cloud sync is down).
+ */
 export async function maybeAutoImportLegacy(): Promise<boolean> {
   try {
-    if (localStorage.getItem(AUTO_IMPORT_KEY) === "true") return false;
     const payload = await fetchLocalExport();
     if (!hasLegacyRows(payload) || !payload) return false;
     if (!(await cloudLooksEmpty())) {
       localStorage.setItem(AUTO_IMPORT_KEY, "true");
       return false;
     }
+    // Empty DB: always import even if we imported before on a prior session.
     await importLocalPayload(payload);
     localStorage.setItem(AUTO_IMPORT_KEY, "true");
     return true;

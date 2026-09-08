@@ -223,16 +223,30 @@ export function SettingsPage() {
     try {
       const payload = await fetchLocalExport();
       if (!payload) throw new Error("No local desktop database found to import");
-      if (!(await cloudLooksEmpty())) {
+      const empty = await cloudLooksEmpty();
+      if (!empty) {
         if (
           !confirm(
-            "This account already has data. Import anyway? Duplicates may appear.",
+            "Replace all data on this device with the Mac backup? Local synced rows will be wiped first so you do not get duplicates.",
           )
         ) {
           return;
         }
+        const [{ getPowerSync }, { SupabaseConnector }] = await Promise.all([
+          import("../sync/database"),
+          import("../sync/powersyncConnector"),
+        ]);
+        const db = getPowerSync();
+        await db.disconnectAndClear();
+        try {
+          await db.connect(new SupabaseConnector());
+        } catch {
+          /* JWT/sync may still be broken; local import still works offline */
+        }
       }
+      localStorage.removeItem("f1nancer.autoImportedLegacy");
       await importLocalPayload(payload);
+      localStorage.setItem("f1nancer.autoImportedLegacy", "true");
       setCategories(await api.get<Category[]>("/categories"));
       await refreshCurrencies();
       await refreshSettings();
@@ -491,10 +505,22 @@ export function SettingsPage() {
               disabled={importing}
               onClick={() => void importLegacyData()}
             >
-              {importing ? "Importing…" : "Import old local database"}
+              {importing ? "Importing…" : "Replace with Mac backup"}
             </button>
           </div>
         ) : null}
+        <p className="muted small">
+          Cloud sync is separate: if you see a red sync banner, open{" "}
+          <a
+            href="https://dashboard.powersync.com/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            PowerSync Dashboard
+          </a>
+          → Client Auth → enable Use Supabase Auth / add JWT Audience{" "}
+          <code>authenticated</code> → Save and Deploy.
+        </p>
       </section>
     </div>
   );
