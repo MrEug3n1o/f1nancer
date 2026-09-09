@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import os
+import json
 import socket
+import sqlite3
+import subprocess
 import sys
 import threading
 import time
@@ -11,6 +14,7 @@ import traceback
 import urllib.error
 import urllib.request
 from datetime import datetime
+from contextlib import closing
 from pathlib import Path
 
 
@@ -24,6 +28,23 @@ def _default_data_dir() -> Path:
         base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
         return Path(base) / "F1nancer"
     return Path.home() / ".local" / "share" / "F1nancer"
+
+
+def _preserve_legacy_database() -> None:
+    """Keep a consistent, one-time recovery copy before the backend opens old data."""
+    directory = _default_data_dir()
+    source = directory / "f1nancer.db"
+    recovery = directory / "before-cloud-repair.db"
+    if not source.is_file() or recovery.exists():
+        return
+    temporary = directory / "before-cloud-repair.db.tmp"
+    try:
+        with closing(sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True)) as original:
+            with closing(sqlite3.connect(temporary)) as copy:
+                original.backup(copy)
+        os.replace(temporary, recovery)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _log_path() -> Path:
@@ -43,6 +64,12 @@ def _log(message: str) -> None:
 
 def _show_error(title: str, message: str) -> None:
     _log(f"ERROR {title}: {message}")
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(["osascript", "-e", f"display alert {json.dumps(title)} message {json.dumps(message)} as critical"], check=False)
+        except OSError:
+            pass
+        return
     if sys.platform != "win32":
         return
     try:
@@ -259,15 +286,62 @@ class _DesktopApi:
             _log(f"Title bar UI invoke failed, applying inline: {exc}")
         apply()
 
+    def save_backup(self, payload: str) -> bool:
+        import webview
+        if len(payload.encode("utf-8")) > 50 * 1024 * 1024:
+            raise ValueError("Backup exceeds 50 MB")
+        if json.loads(payload).get("format") != "f1nancer-backup":
+            raise ValueError("Invalid backup")
+        if self._window is None:
+            raise RuntimeError("Desktop window unavailable")
+        selected = self._window.create_file_dialog(webview.SAVE_DIALOG, save_filename="F1nancer-backup.json", file_types=("JSON (*.json)",))
+        if not selected:
+            return False
+        path = Path(selected if isinstance(selected, str) else selected[0])
+        temporary = path.with_name(path.name + ".tmp")
+        with temporary.open("x", encoding="utf-8") as handle:
+            handle.write(payload)
+        os.replace(temporary, path)
+        return True
+
+    def open_backup(self) -> str | None:
+        import webview
+        if self._window is None:
+            raise RuntimeError("Desktop window unavailable")
+        selected = self._window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=("JSON (*.json)",))
+        if not selected:
+            return None
+        path = Path(selected if isinstance(selected, str) else selected[0])
+        if path.stat().st_size > 50 * 1024 * 1024:
+            raise ValueError("Backup exceeds 50 MB")
+        return path.read_text(encoding="utf-8")
+
     def set_title_bar_theme(self, theme: str) -> None:
         self._theme = "dark" if theme == "dark" else "light"
         self._reapply()
 
 
 def _free_port() -> int:
+    """Persist the origin: IndexedDB, SQLite OPFS and sessions are origin-bound."""
+    directory = _default_data_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "desktop-port"
+    if path.exists():
+        port = int(path.read_text().strip())
+        if not 1024 <= port <= 65535:
+            raise ValueError("Invalid saved desktop port; existing storage has been preserved.")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind(("127.0.0.1", port))
+            except OSError as exc:
+                raise RuntimeError(f"F1nancer's saved port {port} is busy. Close the other instance and retry. Your data is preserved.") from exc
+        return port
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
+        port = int(sock.getsockname()[1])
+        with path.open("x") as handle:
+            handle.write(str(port))
+        return port
 
 
 def _wait_for_server(
@@ -299,6 +373,10 @@ def main() -> None:
     _log(f"Starting F1nancer frozen={getattr(sys, 'frozen', False)} exe={sys.executable}")
     root = _project_root()
     _prepare_environment(root)
+    try:
+        _preserve_legacy_database()
+    except (OSError, sqlite3.Error) as exc:
+        _fatal("F1nancer could not preserve the previous database", "Startup stopped before migration. Your original database is unchanged.", exc)
 
     import uvicorn
     import webview
@@ -314,7 +392,10 @@ def main() -> None:
 
     _log(f"pywebview backend candidates loaded from {webview.__file__}")
 
-    port = _free_port()
+    try:
+        port = _free_port()
+    except (OSError, ValueError, RuntimeError) as exc:
+        _fatal("F1nancer could not open its saved address", str(exc))
     host = "127.0.0.1"
     url = f"http://{host}:{port}"
 
@@ -386,7 +467,9 @@ def main() -> None:
         window.events.shown += on_shown
         window.events.maximized += on_maximized
         window.events.restored += on_restored
-        webview.start(on_ready)
+        storage = _default_data_dir() / "webview"
+        storage.mkdir(parents=True, exist_ok=True)
+        webview.start(on_ready, private_mode=False, storage_path=str(storage))
     finally:
         server.should_exit = True
         thread.join(timeout=5)

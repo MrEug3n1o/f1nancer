@@ -1029,7 +1029,15 @@ export async function handlePatch(path: string, body: unknown): Promise<unknown>
 export async function handleDelete(path: string): Promise<void> {
   const p = new URL(path, "https://local").pathname;
   if (p.startsWith("/categories/")) {
-    await exec("DELETE FROM categories WHERE id = ?", [p.split("/")[2]]);
+    const { db, userId: uid } = requireDb();
+    const id = p.split("/")[2];
+    await db.writeTransaction(async tx => {
+      for (const table of ["transactions", "budgets", "recurring_rules"]) {
+        const rows = await tx.getAll(`SELECT id FROM ${table} WHERE category_id = ? AND user_id = ? LIMIT 1`, [id, uid]);
+        if (rows.length) throw new Error("This category is in use. Reassign its transactions, budgets, and recurring rules before deleting it.");
+      }
+      await tx.execute("DELETE FROM categories WHERE id = ? AND user_id = ?", [id, uid]);
+    });
     return;
   }
   if (p.startsWith("/currencies/")) {

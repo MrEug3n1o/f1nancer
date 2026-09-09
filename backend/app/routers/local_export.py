@@ -62,6 +62,7 @@ def local_export(request: Request):
                 "default_currency_code": settings.default_currency_code,
                 "theme": settings.theme,
                 "locale": settings.locale or "en-US",
+                "stats_charts": _parse_json(getattr(settings, "stats_charts", None), ["trends", "spend_by_category", "by_currency"]),
                 "dashboard_widgets": _parse_json(
                     settings.dashboard_widgets, json.loads(DEFAULT_DASHBOARD_WIDGETS)
                 ),

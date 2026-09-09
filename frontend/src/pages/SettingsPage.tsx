@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -13,11 +15,6 @@ import { PillSelect } from "../components/PillSelect";
 import { ErrorBanner, IconButton, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
 import { ISO_CURRENCY_CATALOG, POPULAR_CURRENCY_CODES } from "../currencyCatalog";
-import {
-  cloudLooksEmpty,
-  fetchLocalExport,
-  importLocalPayload,
-} from "../data/importLocal";
 import { useAuth } from "../sync/AuthProvider";
 import type {
   Category,
@@ -27,6 +24,8 @@ import type {
 } from "../types";
 import { applyTheme } from "../utils";
 
+const BackupPanel = lazy(() => import("../components/BackupPanel").then(m => ({ default: m.BackupPanel })));
+
 export function SettingsPage() {
   const {
     settings,
@@ -34,9 +33,7 @@ export function SettingsPage() {
     refreshSettings,
     refreshCurrencies,
   } = useApp();
-  const { username, signOut } = useAuth();
-  const [importing, setImporting] = useState(false);
-  const [hasLocalExport, setHasLocalExport] = useState(false);
+  const { username, signOut, dataRevision } = useAuth();
 
   const [theme, setTheme] = useState<ThemeMode>("system");
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
@@ -61,15 +58,8 @@ export function SettingsPage() {
       .get<Category[]>("/categories")
       .then(setCategories)
       .catch(() => setCategories([]));
-  }, []);
+  }, [dataRevision]);
 
-  useEffect(() => {
-    void fetchLocalExport().then((payload) => {
-      setHasLocalExport(
-        Boolean(payload?.categories?.length || payload?.transactions?.length),
-      );
-    });
-  }, []);
 
   const enabledCodes = useMemo(
     () => new Set(currencies.map((c) => c.code)),
@@ -217,45 +207,6 @@ export function SettingsPage() {
     }
   }
 
-  async function importLegacyData() {
-    setError(null);
-    setImporting(true);
-    try {
-      const payload = await fetchLocalExport();
-      if (!payload) throw new Error("No local desktop database found to import");
-      const empty = await cloudLooksEmpty();
-      if (!empty) {
-        if (
-          !confirm(
-            "Replace all data on this device with the Mac backup? Local synced rows will be wiped first so you do not get duplicates.",
-          )
-        ) {
-          return;
-        }
-        const [{ getPowerSync }, { SupabaseConnector }] = await Promise.all([
-          import("../sync/database"),
-          import("../sync/powersyncConnector"),
-        ]);
-        const db = getPowerSync();
-        await db.disconnectAndClear();
-        try {
-          await db.connect(new SupabaseConnector());
-        } catch {
-          /* JWT/sync may still be broken; local import still works offline */
-        }
-      }
-      localStorage.removeItem("f1nancer.autoImportedLegacy");
-      await importLocalPayload(payload);
-      localStorage.setItem("f1nancer.autoImportedLegacy", "true");
-      setCategories(await api.get<Category[]>("/categories"));
-      await refreshCurrencies();
-      await refreshSettings();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed");
-    } finally {
-      setImporting(false);
-    }
-  }
 
   return (
     <div className="stack">
@@ -275,10 +226,10 @@ export function SettingsPage() {
             onClick={() => {
               if (
                 confirm(
-                  "Sign out and clear local data on this device? Your cloud account stays intact.",
+                  "Sign out? Local data and pending changes will be kept for your next sign-in.",
                 )
               ) {
-                void signOut();
+                void signOut().catch(e => setError(String(e)));
               }
             }}
           >
@@ -286,8 +237,7 @@ export function SettingsPage() {
           </button>
         </div>
         <p className="muted small account-hint">
-          Same username works on desktop and mobile. Signing out wipes this
-          device’s local copy; last write wins if both devices edit offline.
+          Same username works on desktop and mobile. Signing out keeps this device’s local data. Last write wins for ordinary edits made offline.
         </p>
       </section>
 
@@ -489,39 +439,7 @@ export function SettingsPage() {
 
       <AppUpdatePanel onError={setError} />
 
-      <section className="section">
-        <h2>Data & sync</h2>
-        <p className="muted">
-          Finance data lives in a local SQLite database on this device and syncs
-          through your F1nancer account when you are online. Signing out wipes
-          the local copy on this machine; your cloud account keeps the source of
-          truth.
-        </p>
-        {hasLocalExport ? (
-          <div className="form-actions">
-            <button
-              type="button"
-              className="btn"
-              disabled={importing}
-              onClick={() => void importLegacyData()}
-            >
-              {importing ? "Importing…" : "Replace with Mac backup"}
-            </button>
-          </div>
-        ) : null}
-        <p className="muted small">
-          Cloud sync is separate: if you see a red sync banner, open{" "}
-          <a
-            href="https://dashboard.powersync.com/"
-            target="_blank"
-            rel="noreferrer"
-          >
-            PowerSync Dashboard
-          </a>
-          → Client Auth → enable Use Supabase Auth / add JWT Audience{" "}
-          <code>authenticated</code> → Save and Deploy.
-        </p>
-      </section>
+      <Suspense fallback={<p>Loading backup tools…</p>}><BackupPanel /></Suspense>
     </div>
   );
 }

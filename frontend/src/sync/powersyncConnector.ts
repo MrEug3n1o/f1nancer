@@ -1,58 +1,23 @@
-import { asSyncedTable, coerceSyncRecord, isUniqueConstraintError } from "@f1nancer/domain";
-import type {
-  AbstractPowerSyncDatabase,
-  PowerSyncBackendConnector,
-} from "@powersync/web";
-import { UpdateType } from "@powersync/web";
+import { uploadSyncBatch } from "@f1nancer/domain";
+import type { AbstractPowerSyncDatabase, PowerSyncBackendConnector } from "@powersync/web";
 import { powerSyncUrl } from "./config";
 import { getSupabase } from "./supabaseClient";
 
-/** Import this only when PowerSync is needed — pulls in wa-sqlite / WASM. */
 export class SupabaseConnector implements PowerSyncBackendConnector {
+  readonly userId: string;
+  readonly instanceId: string;
+  constructor(userId: string, instanceId: string) { this.userId = userId; this.instanceId = instanceId; }
   async fetchCredentials() {
-    const { data } = await getSupabase().auth.getSession();
-    const session = data.session;
-    if (!session) {
-      throw new Error("Not signed in");
-    }
-    return {
-      endpoint: powerSyncUrl,
-      token: session.access_token,
-    };
+    const { data, error } = await getSupabase().auth.getSession();
+    if (error) throw error;
+    if (!data.session || data.session.user.id !== this.userId) throw new Error("Sign in again to reconnect cloud sync.");
+    return { endpoint: powerSyncUrl, token: data.session.access_token,
+      expiresAt: data.session.expires_at ? new Date(data.session.expires_at * 1000) : undefined };
   }
-
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
-    const transaction = await database.getNextCrudTransaction();
-    if (!transaction) return;
-    const client = getSupabase();
-
-    try {
-      for (const op of transaction.crud) {
-        const table = client.from(op.table);
-        const record = coerceSyncRecord(op.table, { ...(op.opData ?? {}), id: op.id });
-        let error;
-        if (op.op === UpdateType.PUT) {
-          ({ error } = await table.upsert(record));
-        } else if (op.op === UpdateType.PATCH) {
-          ({ error } = await table.update(coerceSyncRecord(op.table, op.opData)).eq("id", op.id));
-        } else if (op.op === UpdateType.DELETE) {
-          ({ error } = await table.delete().eq("id", op.id));
-        }
-        if (error) {
-          if (op.op === UpdateType.PUT && isUniqueConstraintError(error)) {
-            const tableName = asSyncedTable(op.table);
-            if (tableName) {
-              await database.execute(`DELETE FROM ${tableName} WHERE id = ?`, [op.id]);
-            }
-            continue;
-          }
-          throw error;
-        }
-      }
-      await transaction.complete();
-    } catch (err) {
-      console.error("PowerSync upload failed", err);
-      throw err;
-    }
+    const { data, error } = await getSupabase().auth.getSession();
+    if (error) throw error;
+    if (data.session?.user.id !== this.userId) throw new Error("Account changed. Pending changes have been retained.");
+    await uploadSyncBatch(database, getSupabase(), this.instanceId);
   }
 }

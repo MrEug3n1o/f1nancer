@@ -1,3 +1,4 @@
+import { useAuth } from "../sync/AuthProvider";
 import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
@@ -10,6 +11,7 @@ import type { Budget, Category } from "../types";
 import { centsToDollarsInput, dollarsToCents, formatMonthLabel } from "../utils";
 
 export function BudgetsPage() {
+  const { dataRevision } = useAuth();
   const { month, defaultCurrency, currencies, locale } = useApp();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -39,7 +41,6 @@ export function BudgetsPage() {
   }, [defaultCurrency, editingId]);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const [bu, cats] = await Promise.all([
@@ -57,7 +58,7 @@ export function BudgetsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, dataRevision]);
 
   function startEdit(budget: Budget) {
     setEditingId(budget.id);

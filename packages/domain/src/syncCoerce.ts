@@ -23,14 +23,12 @@ export function coerceSyncRecord(
   if (!data) return {};
   const next: Record<string, unknown> = { ...data };
   for (const key of BOOL_FIELDS[table] ?? []) {
-    if (key in next) next[key] = Boolean(next[key]);
+    if (key in next) next[key] = next[key] === true || next[key] === 1 || next[key] === "1" || next[key] === "true";
   }
   for (const key of INT_FIELDS[table] ?? []) {
     if (!(key in next)) continue;
     if (next[key] === "" || next[key] === undefined) next[key] = null;
   }
-  for (const [key, value] of Object.entries(next)) {
-    if (value === "") next[key] = null;
-  }
+
   return next;
 }

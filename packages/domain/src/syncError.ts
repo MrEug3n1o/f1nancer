@@ -64,7 +64,7 @@ export function formatSyncError(err: unknown): string {
     return 'Cloud sync rejected this login token. In the PowerSync Dashboard open Client Auth, add JWT Audience “authenticated” (and enable Use Supabase Auth if needed), then Save and Deploy.';
   }
   if (isUniqueConstraintError(err)) {
-    return "Cloud sync hit a duplicate of data already in the cloud. Retrying with the cloud copy.";
+    return "Cloud sync found conflicting duplicate data. Your local changes are retained. Export a backup, correct the conflicting record, then retry.";
   }
   return msg || "Cloud sync is unavailable.";
 }

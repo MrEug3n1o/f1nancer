@@ -1,3 +1,4 @@
+import { useAuth } from "../sync/AuthProvider";
 import { useCallback, useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { api } from "../api";
 import { CreditDebtCard } from "../components/CreditDebtCard";
@@ -13,6 +14,7 @@ import { dollarsToCents, percentToBps, todayISO } from "../utils";
 type ComposerKind = "deposit" | "credit";
 
 export function BankPage() {
+  const { dataRevision } = useAuth();
   const { defaultCurrency, currencies } = useApp();
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [credits, setCredits] = useState<CreditDebt[]>([]);
@@ -38,7 +40,6 @@ export function BankPage() {
   }, [defaultCurrency]);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const [dep, cd] = await Promise.all([
@@ -56,7 +57,7 @@ export function BankPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, dataRevision]);
 
   function resetForm() {
     setName("");

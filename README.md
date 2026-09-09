@@ -117,7 +117,7 @@ Vite proxies `/api` to the local engine. Open the URL Vite prints (usually http:
 
 ## Backup
 
-Signed-in data syncs to your F1nancer account. Each device also keeps a local SQLite database (PowerSync). Signing out clears the local copy on that device.
+Signed-in data syncs to your F1nancer account. The sync status shows first-download progress, pending uploads, errors, and the last successful sync. Each device also keeps a local SQLite database (PowerSync). Signing out disconnects sync and keeps the local copy and pending uploads for that account.
 
 Legacy (pre-sync) desktop files can be imported from Settings after you sign in:
 
@@ -157,3 +157,26 @@ Production APK builds use EAS (`mobile/eas.json` profile `apk`) and bake in the 
 - Recurring payments / subscriptions (auto-create due transactions)
 - Dashboard charts: month overview, spend by category, goal progress
 - Currency setting (display only; amounts stored as integer cents)
+
+### Backups and device transfer
+
+In desktop **Settings → Data & sync**, or mobile **Account → Backup & transfer**, choose **Export backup**. Transfer the JSON file to another device, sign into the same account, and choose **Import backup**. Review the preview and confirm the merge. Existing conflicting records are kept unless you explicitly select the backup value; records absent from the file are never deleted.
+
+Export and import work from local SQLite while PowerSync is unavailable. A device that has not finished downloading may export an incomplete copy. Uploaded imports are checked again against cloud data; any unseen conflicts are retained for review in the same backup panel. Recovery snapshots are saved before every import and can be exported there. If an upload is rejected, correct the record, open its rejected-upload review, and choose **Retry with current values**. The original operation is retained locally; acknowledgement still requires server acceptance. Backup files contain readable financial data and no passwords or access tokens.
+
+**Previous desktop data** is an explicit previewed migration from the old FastAPI database. It retains statuses and relationships and uses stable IDs, so repeating the migration does not create additional copies. Invalid historical data is reported before any writes.
+
+Desktop now retains an application-specific browser profile and local server port. If another process occupies that port, close it and retry; the app does not silently change origins. Existing legacy files are preserved. Data discarded by an older private-browser session can only be recovered from the cloud or an existing legacy database/backup.
+
+Expo Go uses temporary in-memory storage: export before closing it. Use a native installed build for persistent mobile data.
+
+### Sync verification
+
+```bash
+npm --prefix frontend run test:sync
+backend/.venv/bin/python -m unittest discover -s desktop/tests -v
+```
+
+The opt-in live test creates and removes a disposable cloud account. With the repaired migration deployed and Vite running at `127.0.0.1:5173`, run `F1NANCER_LIVE_TEST=1 npm --prefix frontend run test:cloud`. Chrome must be installed. It checks two isolated browser clients, offline edits, fresh-client backup restore, repeat import, and reload persistence. It does not substitute for testing the installed Android APK or Windows WebView.
+
+Detailed cloud-repair evidence and remaining native device checks: [verification report](supabase/VERIFICATION.md).

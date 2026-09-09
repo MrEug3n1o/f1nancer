@@ -1,3 +1,4 @@
+import { useAuth } from "../sync/AuthProvider";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
@@ -11,6 +12,7 @@ import type { Category, CategoryType, Goal, MoneyLocation, Transaction } from ".
 import { centsToDollarsInput, dollarsToCents, shiftDateISO, todayISO } from "../utils";
 
 export function TransactionsPage() {
+  const { dataRevision } = useAuth();
   const { month, defaultCurrency, currencies } = useApp();
   const [items, setItems] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -85,7 +87,6 @@ export function TransactionsPage() {
   }, [goals]);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ month });
@@ -108,7 +109,7 @@ export function TransactionsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, dataRevision]);
 
   useEffect(() => {
     if (showComposer) focusAmount();

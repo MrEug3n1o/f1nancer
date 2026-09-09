@@ -1,3 +1,4 @@
+import { useAuth } from "../sync/AuthProvider";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
@@ -11,6 +12,7 @@ import type { Cadence, Category, CategoryType, MoneyLocation, RecurringRule } fr
 import { dollarsToCents, todayISO } from "../utils";
 
 export function SubscriptionsPage() {
+  const { dataRevision } = useAuth();
   const { defaultCurrency, currencies } = useApp();
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -36,7 +38,6 @@ export function SubscriptionsPage() {
   );
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       await api.post("/recurring/process", {});
@@ -55,7 +56,7 @@ export function SubscriptionsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, dataRevision]);
 
   function resetForm() {
     setAmount("");

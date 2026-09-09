@@ -1,3 +1,4 @@
+import { BackupCard } from "./BackupCard";
 import { useCallback, useEffect, useState } from "react";
 import {
   Pressable,
@@ -22,7 +23,7 @@ import { colors } from "./theme";
 type Tab = "home" | "txns" | "cats" | "account";
 
 export function MainScreen() {
-  const { session, username, signOut } = useAuth();
+  const { session, username, signOut, dataRevision, syncInfo } = useAuth();
   const userId = session!.user.id;
   const [tab, setTab] = useState<Tab>("home");
   const [error, setError] = useState<string | null>(null);
@@ -48,25 +49,23 @@ export function MainScreen() {
       setPocket(
         pocketRow
           ? formatMoney(pocketRow.net_cents, pocketRow.currency_code)
-          : "No activity yet",
+          : syncInfo.hasSynced ? "No activity yet" : "Waiting for cloud data",
       );
       setMonthNet(
         monthRow
           ? formatMoney(monthRow.net_cents, monthRow.currency_code)
-          : "No activity this month",
+          : syncInfo.hasSynced ? "No activity this month" : "Waiting for cloud data",
       );
       const typed = data.categories.filter((c) => c.type === type);
-      if (typed.length && !typed.some((c) => c.id === categoryId)) {
-        setCategoryId(typed[0].id);
-      }
+      setCategoryId(selected => typed.some(c => c.id === selected) ? selected : typed[0]?.id ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     }
-  }, [type, userId]);
+  }, [type, userId, syncInfo.hasSynced]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, dataRevision]);
 
   async function addTransaction() {
     try {
@@ -214,9 +213,10 @@ export function MainScreen() {
             <Text style={styles.muted}>
               Last write wins if this phone and desktop edit the same row offline.
             </Text>
+            <BackupCard />
             <AppUpdateCard active={tab === "account"} />
-            <Pressable style={styles.button} onPress={() => void signOut()}>
-              <Text style={styles.buttonText}>Sign out and clear this device</Text>
+            <Pressable style={styles.button} onPress={() => void signOut().catch(e => setError(String(e)))}>
+              <Text style={styles.buttonText}>Sign out (keep local data)</Text>
             </Pressable>
           </View>
         ) : null}

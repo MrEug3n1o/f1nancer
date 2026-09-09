@@ -38,7 +38,7 @@ function SignedInApp() {
 
 function Gate() {
   const { session, loading, dbReady, dbError } = useAuth();
-  if (loading || (session && !dbReady)) {
+  if (loading || (session && !dbReady && !dbError)) {
     return (
       <div className="auth-shell">
         <p className="muted">Loading…</p>
@@ -56,7 +56,7 @@ function Gate() {
     );
   }
   if (!session) return <AuthPage />;
-  return <SignedInApp />;
+  return <SignedInApp key={session.user.id} />;
 }
 
 export default function App() {

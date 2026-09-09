@@ -1,5 +1,12 @@
+import { parseCachedSession } from "@f1nancer/domain";
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { isSyncConfigured, supabaseAnonKey, supabaseUrl } from "./config";
+
+const storageKey = supabaseUrl ? `sb-${new URL(supabaseUrl).hostname.split(".")[0]}-auth-token` : "f1nancer-unconfigured";
+
+export async function readCachedSession(): Promise<Session | null> {
+  try { return parseCachedSession(localStorage.getItem(storageKey)) as Session | null; } catch { return null; }
+}
 
 let _supabase: SupabaseClient | null = null;
 
@@ -10,6 +17,7 @@ export function getSupabase(): SupabaseClient {
   }
   _supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
+      storageKey,
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: false,

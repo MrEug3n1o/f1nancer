@@ -1,3 +1,4 @@
+import { useAuth } from "./sync/AuthProvider";
 import {
   createContext,
   useCallback,
@@ -54,6 +55,7 @@ const fallbackSettings: Settings = {
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { dataRevision } = useAuth();
   const [month, setMonth] = useState(currentMonth);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
@@ -88,8 +90,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refreshSettings();
     void refreshCurrencies();
-    void api.post("/recurring/process", {}).catch(() => undefined);
-  }, [refreshSettings, refreshCurrencies]);
+
+  }, [refreshSettings, refreshCurrencies, dataRevision]);
+
+  useEffect(() => { void api.post("/recurring/process", {}).catch(() => undefined); }, []);
 
   useEffect(() => {
     if (!settings?.theme) return;

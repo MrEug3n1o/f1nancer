@@ -10,7 +10,22 @@ permissions:
   contents: write
 
 jobs:
+  verify-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run test:sync
+        working-directory: frontend
+
   windows:
+    needs: verify-sync
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -60,6 +75,7 @@ jobs:
           if-no-files-found: error
 
   macos:
+    needs: verify-sync
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -103,6 +119,7 @@ jobs:
           if-no-files-found: error
 
   android:
+    needs: verify-sync
     runs-on: ubuntu-latest
     defaults:
       run:

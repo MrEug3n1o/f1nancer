@@ -8,20 +8,22 @@ export function createAppSchema(ps: {
     integer: unknown;
     real: unknown;
   };
-  Table: new (columns: Record<string, unknown>, options?: { indexes?: Record<string, string[]> }) => unknown;
+  Table: new (columns: Record<string, unknown>, options?: { indexes?: Record<string, string[]>; trackMetadata?: boolean }) => unknown;
   Schema: new (tables: any) => unknown;
 }): unknown {
-  const { column, Table, Schema } = ps;
+  const { column, Schema } = ps;
+  const table = (columns: Record<string, unknown>, options: { indexes?: Record<string, string[]> } = {}) =>
+    new ps.Table(columns, { ...options, trackMetadata: true });
   const text = column.text;
   const integer = column.integer;
 
-  const profiles = new Table({
+  const profiles = table({
     username: text,
     created_at: text,
     updated_at: text,
   });
 
-  const currencies = new Table(
+  const currencies = table(
     {
       user_id: text,
       code: text,
@@ -32,7 +34,7 @@ export function createAppSchema(ps: {
     { indexes: { user: ["user_id"] } },
   );
 
-  const categories = new Table(
+  const categories = table(
     {
       user_id: text,
       name: text,
@@ -44,7 +46,7 @@ export function createAppSchema(ps: {
     { indexes: { user: ["user_id"] } },
   );
 
-  const transactions = new Table(
+  const transactions = table(
     {
       user_id: text,
       amount: integer,
@@ -63,7 +65,7 @@ export function createAppSchema(ps: {
     { indexes: { user: ["user_id"], date: ["date"], category: ["category_id"] } },
   );
 
-  const budgets = new Table(
+  const budgets = table(
     {
       user_id: text,
       category_id: text,
@@ -75,7 +77,7 @@ export function createAppSchema(ps: {
     { indexes: { user: ["user_id"] } },
   );
 
-  const goals = new Table(
+  const goals = table(
     {
       user_id: text,
       name: text,
@@ -90,7 +92,7 @@ export function createAppSchema(ps: {
     { indexes: { user: ["user_id"] } },
   );
 
-  const deposits = new Table(
+  const deposits = table(
     {
       user_id: text,
       name: text,
@@ -110,7 +112,7 @@ export function createAppSchema(ps: {
     { indexes: { user: ["user_id"] } },
   );
 
-  const credit_debts = new Table(
+  const credit_debts = table(
     {
       user_id: text,
       name: text,
@@ -130,7 +132,7 @@ export function createAppSchema(ps: {
     { indexes: { user: ["user_id"] } },
   );
 
-  const recurring_rules = new Table(
+  const recurring_rules = table(
     {
       user_id: text,
       amount: integer,
@@ -149,7 +151,7 @@ export function createAppSchema(ps: {
     { indexes: { user: ["user_id"] } },
   );
 
-  const settings = new Table(
+  const settings = table(
     {
       user_id: text,
       default_currency_code: text,

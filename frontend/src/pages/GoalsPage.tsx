@@ -1,3 +1,4 @@
+import { useAuth } from "../sync/AuthProvider";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { DatePicker } from "../components/DatePicker";
@@ -28,6 +29,7 @@ function emptyDraft(): TxnDraft {
 }
 
 export function GoalsPage() {
+  const { dataRevision } = useAuth();
   const { defaultCurrency, currencies } = useApp();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -47,7 +49,6 @@ export function GoalsPage() {
   }, [defaultCurrency, editingGoalId]);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const [goalRows, categoryRows] = await Promise.all([
@@ -65,7 +66,7 @@ export function GoalsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, dataRevision]);
 
   const goalsCategoryId =
     categories.find((c) => c.name === "Goals")?.id ?? categories[0]?.id;

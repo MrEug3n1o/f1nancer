@@ -1,38 +1,22 @@
 import { PowerSyncDatabase } from "@powersync/web";
+import { openOwnedDatabase, createSerialQueue } from "@f1nancer/domain";
 import { AppSchema } from "./schema";
-
-let _powerSync: PowerSyncDatabase | null = null;
-let _initError: Error | null = null;
-
-export function getPowerSyncInitError(): Error | null {
-  return _initError;
-}
-
+import { supabaseUrl } from "./config";
+let active: PowerSyncDatabase | null = null;
+export const serializeSync = createSerialQueue();
 export function getPowerSync(): PowerSyncDatabase {
-  if (_initError) throw _initError;
-  if (_powerSync) return _powerSync;
-  try {
-    _powerSync = new PowerSyncDatabase({
-      schema: AppSchema,
-      database: {
-        dbFilename: "f1nancer.sqlite",
-      },
-      flags: {
-        enableMultiTabs: false,
-      },
-    });
-    return _powerSync;
-  } catch (err) {
-    _initError = err instanceof Error ? err : new Error(String(err));
-    throw _initError;
-  }
+  if (!active) throw new Error("Sign in to open your local database.");
+  return active;
 }
-
-/** Lazy singleton — do not construct at module import time (WASM / worker crash). */
+export async function openAccountDatabase(userId: string) {
+  if (active) { await active.disconnect(); await active.close(); active = null; }
+  const result = await openOwnedDatabase(userId, supabaseUrl, filename => new PowerSyncDatabase({
+    schema: AppSchema, database: { dbFilename: filename }, flags: { enableMultiTabs: false },
+  }), { getItem: async key => localStorage.getItem(key), setItem: async (key, value) => localStorage.setItem(key, value) }, () => crypto.randomUUID());
+  active = result.db;
+  return result;
+}
+export async function disconnectDatabase() { if (active) await active.disconnect(); }
 export const powerSync = new Proxy({} as PowerSyncDatabase, {
-  get(_target, prop, receiver) {
-    const db = getPowerSync();
-    const value = Reflect.get(db, prop, receiver);
-    return typeof value === "function" ? value.bind(db) : value;
-  },
+  get(_target, prop) { const db = getPowerSync(); const v = Reflect.get(db, prop, db); return typeof v === "function" ? v.bind(db) : v; },
 });

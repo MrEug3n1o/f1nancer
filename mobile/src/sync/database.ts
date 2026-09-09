@@ -1,44 +1,26 @@
 import type { AbstractPowerSyncDatabase } from "@powersync/common";
 import Constants from "expo-constants";
-import { formatSyncError } from "@f1nancer/domain";
-
-let _powerSync: AbstractPowerSyncDatabase | null = null;
-let _initError: Error | null = null;
-
-function isExpoGo(): boolean {
-  return Constants.executionEnvironment === "storeClient";
-}
-
-export function getPowerSyncInitError(): Error | null {
-  return _initError;
-}
-
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { randomUUID } from "expo-crypto";
+import { openOwnedDatabase, createSerialQueue } from "@f1nancer/domain";
+import { supabaseUrl } from "./config";
+let active: AbstractPowerSyncDatabase | null = null;
+export const serializeSync = createSerialQueue();
+export const isTemporaryStorage = Constants.executionEnvironment === "storeClient";
 export function getPowerSync(): AbstractPowerSyncDatabase {
-  if (_initError) throw _initError;
-  if (_powerSync) return _powerSync;
-  try {
-    if (isExpoGo()) {
-      // Dynamic require so Expo Go never loads native PowerSyncDatabase / op-sqlite JSI.
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { createSqlJsPowerSync } = require("./databaseSqlJs") as typeof import("./databaseSqlJs");
-      _powerSync = createSqlJsPowerSync();
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { createNativePowerSync } = require("./databaseNative") as typeof import("./databaseNative");
-      _powerSync = createNativePowerSync();
-    }
-    return _powerSync;
-  } catch (err) {
-    _initError = err instanceof Error ? err : new Error(formatSyncError(err));
-    throw _initError;
-  }
+  if (!active) throw new Error("Sign in to open your local database.");
+  return active;
 }
-
-/** Lazy singleton — sql.js in Expo Go, native SQLite in EAS/production. */
+export async function openAccountDatabase(userId: string) {
+  if (active) { await active.disconnect(); await active.close(); active = null; }
+  const factory = isTemporaryStorage
+    ? (require("./databaseSqlJs") as typeof import("./databaseSqlJs")).createSqlJsPowerSync
+    : (require("./databaseNative") as typeof import("./databaseNative")).createNativePowerSync;
+  const result = await openOwnedDatabase(userId, supabaseUrl, factory, AsyncStorage, randomUUID);
+  active = result.db;
+  return result;
+}
+export async function disconnectDatabase() { if (active) await active.disconnect(); }
 export const powerSync = new Proxy({} as AbstractPowerSyncDatabase, {
-  get(_target, prop, receiver) {
-    const db = getPowerSync();
-    const value = Reflect.get(db, prop, receiver);
-    return typeof value === "function" ? value.bind(db) : value;
-  },
+  get(_target, prop) { const db = getPowerSync(); const v = Reflect.get(db, prop, db); return typeof v === "function" ? v.bind(db) : v; },
 });

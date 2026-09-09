@@ -1,3 +1,4 @@
+import { useAuth } from "../sync/AuthProvider";
 import {
   DndContext,
   DragOverlay,
@@ -89,6 +90,7 @@ const collisionDetection: CollisionDetection = (args) => {
 };
 
 export function DashboardPage() {
+  const { dataRevision } = useAuth();
   const {
     month,
     settings,
@@ -135,7 +137,6 @@ export function DashboardPage() {
   );
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const spendUrl = spendCurrency
@@ -172,7 +173,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, dataRevision]);
 
   useEffect(() => {
     if (overview && overview.currencies.length === 1 && !spendCurrency) {

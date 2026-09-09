@@ -1,20 +1,9 @@
 import { useAuth } from "../sync/AuthProvider";
-
 export function SyncBanner() {
-  const { syncError } = useAuth();
-  if (!syncError) return null;
-  const isUpload = syncError.kind === "upload";
-  return (
-    <div className="sync-banner" role="alert">
-      <div>
-        <strong>{isUpload ? "Cloud sync upload failed" : "Cloud sync is not connected"}</strong>
-        <p className="muted small" style={{ margin: "0.25rem 0 0" }}>
-          {syncError.message}{" "}
-          {isUpload
-            ? "Your data on this computer is still here; changes are not reaching the cloud yet."
-            : "Your data on this computer is still here; it just is not downloading from the cloud yet."}
-        </p>
-      </div>
-    </div>
-  );
+  const { syncError, syncInfo, retrySync } = useAuth();
+  return <div className="sync-banner" role="status"><div>
+    <strong>{syncError ? syncError.message : syncInfo.connected && !syncInfo.hasSynced ? "Downloading your data…" : syncInfo.connected ? "Cloud connected" : "Offline — local data available"}</strong>
+    <p>{syncInfo.pendingUploads} changes waiting to upload · {syncInfo.lastSyncedAt ? `Last synced ${new Date(syncInfo.lastSyncedAt).toLocaleString()}` : "First cloud download not confirmed"}</p>
+    {syncInfo.conflicts > 0 && <p>{syncInfo.conflicts} backup conflicts need review in Settings.</p>}
+  </div><button className="btn" onClick={() => void retrySync()}>Retry sync</button></div>;
 }

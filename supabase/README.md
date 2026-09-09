@@ -46,3 +46,13 @@ EXPO_PUBLIC_POWERSYNC_URL=https://YOUR_INSTANCE.powersync.journeyapps.com
 ```
 
 Optional: `RECURRING_CRON_SECRET` for the process-recurring function.
+
+## Reliable upload migration
+
+Apply `20260909173234_reliable_sync.sql` before releasing the repaired clients. The migration is additive: finance table IDs, account IDs, and PowerSync stream names stay unchanged. New clients upload through `public.apply_sync_batch(uuid, jsonb)`; a missing function is shown as a server-upgrade requirement and the local queue remains intact.
+
+The authenticated wrapper calls a private function with explicit account and reference checks. Private receipts make retries idempotent using the database-instance UUID and local operation ID. Settings, currencies, and budgets retain their canonical cloud IDs through a durable alias map. Neither receipts nor aliases belong in the PowerSync publication. Imports carry merge metadata; unseen cloud conflicts return evidence that the client persists before acknowledging the upload.
+
+A complete deployment check includes all ten published tables, matching Supabase/PowerSync endpoints in desktop and Android builds, client JWT audience `authenticated`, active logical replication, and the deployed `user_data` stream. Database replication being healthy does not prove that a client has downloaded its data.
+
+The release regression suite runs without cloud credentials. `frontend/scripts/test-cloud.mjs` is an opt-in live verification that cleans up its own temporary account. Never use a user's finance account as a write-test fixture.

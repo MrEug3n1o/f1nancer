@@ -1,3 +1,4 @@
+import { randomUUID } from "expo-crypto";
 import {
   asInt,
   formatMoney,
@@ -82,7 +83,7 @@ export async function createCategory(
   await powerSync.execute(
     `INSERT INTO categories (id, user_id, name, type, color, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [crypto.randomUUID(), userId, name.trim(), type, color, ts, ts],
+    [randomUUID(), userId, name.trim(), type, color, ts, ts],
   );
 }
 
@@ -105,7 +106,7 @@ export async function createTransaction(
       money_location, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      crypto.randomUUID(),
+      randomUUID(),
       userId,
       payload.amount,
       payload.currency_code,

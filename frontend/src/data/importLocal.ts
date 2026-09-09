@@ -1,228 +1,40 @@
-import type { LocalExportPayload } from "@f1nancer/domain";
-import { ISO_CURRENCY_CATALOG } from "../currencyCatalog";
-import { handleGet, handlePatch, handlePost } from "./repo";
-
-function catalogName(code: string): string {
-  return ISO_CURRENCY_CATALOG.find((c) => c.code === code)?.name ?? code;
-}
+import { BACKUP_COLUMNS, FINANCE_TABLES, validateBackup, type BackupRow, type FinanceBackup, type LocalExportPayload } from '@f1nancer/domain';
+import { supabaseUrl } from '../sync/config';
 export async function fetchLocalExport(): Promise<LocalExportPayload | null> {
-  try {
-    const res = await fetch("/api/local-export");
-    if (!res.ok) return null;
-    return (await res.json()) as LocalExportPayload;
-  } catch {
-    return null;
-  }
+  try { const res = await fetch('/api/local-export'); return res.ok ? await res.json() : null; } catch { return null; }
 }
-
-export async function cloudLooksEmpty(): Promise<boolean> {
-  try {
-    const [txns, goals, deposits, credits] = await Promise.all([
-      handleGet("/transactions") as Promise<unknown[]>,
-      handleGet("/goals") as Promise<unknown[]>,
-      handleGet("/deposits") as Promise<unknown[]>,
-      handleGet("/credits-debts") as Promise<unknown[]>,
-    ]);
-    return (
-      txns.length === 0 &&
-      goals.length === 0 &&
-      deposits.length === 0 &&
-      credits.length === 0
-    );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("Sign in to sync")) return false;
-    throw err;
-  }
+async function stableId(userId: string, table: string, id: string): Promise<string> {
+  const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`f1nancer-legacy-v1:${userId}:${table}:${id}`)));
+  bytes[6] = (bytes[6] & 15) | 80; bytes[8] = (bytes[8] & 63) | 128;
+  const hex = [...bytes.slice(0, 16)].map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
 }
-
-const AUTO_IMPORT_KEY = "f1nancer.autoImportedLegacy";
-
-function hasLegacyRows(payload: LocalExportPayload | null): boolean {
-  return Boolean(payload?.transactions?.length || payload?.categories?.length);
-}
-
-/**
- * Import leftover FastAPI SQLite into an empty PowerSync DB.
- * Runs after sign-in when the local synced DB has no finance rows yet
- * (e.g. fresh device, or after sign-out cleared local data while cloud sync is down).
- */
-export async function maybeAutoImportLegacy(): Promise<boolean> {
-  try {
-    const payload = await fetchLocalExport();
-    if (!hasLegacyRows(payload) || !payload) return false;
-    if (!(await cloudLooksEmpty())) {
-      localStorage.setItem(AUTO_IMPORT_KEY, "true");
-      return false;
-    }
-    // Empty DB: always import even if we imported before on a prior session.
-    await importLocalPayload(payload);
-    localStorage.setItem(AUTO_IMPORT_KEY, "true");
-    return true;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("Sign in to sync")) return false;
-    throw err;
-  }
-}
-
-export async function importLocalPayload(payload: LocalExportPayload): Promise<void> {
-  const categoryMap = new Map<number, string>();
-  const goalMap = new Map<number, string>();
-  const creditMap = new Map<number, string>();
-  const recurringMap = new Map<number, string>();
-
-  for (const currency of payload.currencies ?? []) {
-    const code = String(currency.code || "").toUpperCase();
-    if (!code) continue;
-    try {
-      await handlePost("/currencies", {
-        code,
-        name: currency.name || catalogName(code),
-      });
-    } catch {
-      /* already enabled */
+/** Raw conversion preserves statuses and links without invoking create-time business actions. */
+export async function prepareLegacyBackup(userId: string): Promise<FinanceBackup> {
+  const payload = await fetchLocalExport();
+  if (!payload) throw new Error('No previous desktop database found.');
+  const tables = {} as FinanceBackup['tables'];
+  const epoch = '1970-01-01T00:00:00.000Z';
+  for (const table of FINANCE_TABLES) {
+    const raw = table === 'settings' ? payload.settings ? [payload.settings] : [] : payload[table];
+    tables[table] = [];
+    for (const original of raw ?? []) {
+      const item = original as Record<string, unknown>;
+      const row: Record<string, unknown> = { ...item, user_id: userId,
+        id: await stableId(userId, table, String(table === 'settings' ? 'singleton' : table === 'currencies' ? item.code : item.id)),
+        created_at: item.created_at || epoch, updated_at: item.updated_at || item.created_at || epoch };
+      for (const [field, target] of Object.entries({ category_id: 'categories', goal_id: 'goals', credit_debt_id: 'credit_debts', recurring_id: 'recurring_rules' })) {
+        if (field in item) row[field] = item[field] == null ? null : await stableId(userId, target, String(item[field]));
+      }
+      if (table === 'settings') {
+        row.stats_charts ??= ['trends','spend_by_category','by_currency'];
+        for (const col of ['dashboard_widgets','stats_charts','dashboard_widget_views','dashboard_widget_layout']) if (typeof row[col] !== 'string') row[col] = JSON.stringify(row[col]);
+      }
+      if (table === 'recurring_rules') row.active = item.active ? 1 : 0;
+      if (['deposits','transactions','recurring_rules'].includes(table)) row.money_location ??= 'card';
+      tables[table].push(Object.fromEntries(BACKUP_COLUMNS[table].map(col => [col, row[col] ?? null])) as BackupRow);
     }
   }
-
-  if (payload.settings) {
-    await handlePatch("/settings", {
-      default_currency_code: payload.settings.default_currency_code,
-      theme: payload.settings.theme,
-      locale: payload.settings.locale || "en-US",
-      dashboard_widgets: payload.settings.dashboard_widgets,
-      dashboard_widget_views:
-        typeof payload.settings.dashboard_widget_views === "string"
-          ? JSON.parse(payload.settings.dashboard_widget_views)
-          : payload.settings.dashboard_widget_views,
-      dashboard_widget_layout:
-        typeof payload.settings.dashboard_widget_layout === "string"
-          ? JSON.parse(payload.settings.dashboard_widget_layout)
-          : payload.settings.dashboard_widget_layout,
-    });
-  }
-
-  const existingCats = (await handleGet("/categories")) as Array<{
-    id: string;
-    name: string;
-    type: string;
-  }>;
-  for (const cat of payload.categories ?? []) {
-    const found = existingCats.find((c) => c.name === cat.name && c.type === cat.type);
-    if (found) {
-      categoryMap.set(cat.id, found.id);
-      continue;
-    }
-    const created = (await handlePost("/categories", {
-      name: cat.name,
-      type: cat.type,
-      color: cat.color,
-    })) as { id: string };
-    categoryMap.set(cat.id, created.id);
-    existingCats.push({ id: created.id, name: cat.name, type: cat.type });
-  }
-
-  for (const goal of payload.goals ?? []) {
-    const oldId = Number(goal.id);
-    const created = (await handlePost("/goals", {
-      name: goal.name,
-      target_amount: goal.target_amount,
-      current_amount: 0,
-      currency_code: goal.currency_code,
-      deadline: goal.deadline,
-    })) as { id: string };
-    goalMap.set(oldId, created.id);
-  }
-
-  for (const rule of payload.recurring_rules ?? []) {
-    const oldId = Number(rule.id);
-    const categoryId = categoryMap.get(Number(rule.category_id));
-    if (!categoryId) continue;
-    const created = (await handlePost("/recurring", {
-      amount: rule.amount,
-      currency_code: rule.currency_code,
-      category_id: categoryId,
-      type: rule.type,
-      cadence: rule.cadence,
-      billing_day: rule.billing_day ?? 1,
-      next_run_date: rule.next_run_date,
-      note: rule.note,
-      money_location: rule.money_location ?? "card",
-    })) as { id: string };
-    recurringMap.set(oldId, created.id);
-  }
-
-  for (const item of payload.credit_debts ?? []) {
-    const oldId = Number(item.id);
-    const created = (await handlePost("/credits-debts", {
-      name: item.name,
-      direction: item.direction,
-      source: item.source,
-      principal_cents: item.principal_cents,
-      currency_code: item.currency_code,
-      start_date: item.start_date,
-      due_date: item.due_date,
-      annual_rate_bps: item.annual_rate_bps,
-      counterparty: item.counterparty,
-      note: item.note,
-    })) as { id: string };
-    creditMap.set(oldId, created.id);
-  }
-
-  for (const deposit of payload.deposits ?? []) {
-    await handlePost("/deposits", {
-      name: deposit.name,
-      type: deposit.type,
-      principal_cents: deposit.principal_cents,
-      currency_code: deposit.currency_code,
-      start_date: deposit.start_date,
-      end_date: deposit.end_date,
-      annual_rate_bps: deposit.annual_rate_bps,
-      counterparty: deposit.counterparty,
-      note: deposit.note,
-      money_location: deposit.money_location ?? "card",
-    });
-  }
-
-  for (const budget of payload.budgets ?? []) {
-    const categoryId = categoryMap.get(Number(budget.category_id));
-    if (!categoryId) continue;
-    try {
-      await handlePost("/budgets", {
-        category_id: categoryId,
-        limit_cents: budget.limit_cents,
-        currency_code: budget.currency_code,
-      });
-    } catch {
-      /* unique constraint */
-    }
-  }
-
-  for (const txn of payload.transactions ?? []) {
-    const categoryId = categoryMap.get(Number(txn.category_id));
-    if (!categoryId) continue;
-    const recurringId = txn.recurring_id
-      ? recurringMap.get(Number(txn.recurring_id))
-      : null;
-    const goalId = txn.goal_id ? goalMap.get(Number(txn.goal_id)) : null;
-    const creditId = txn.credit_debt_id
-      ? creditMap.get(Number(txn.credit_debt_id))
-      : null;
-    try {
-      await handlePost("/transactions", {
-        amount: txn.amount,
-        currency_code: txn.currency_code,
-        date: String(txn.date).slice(0, 10),
-        type: txn.type,
-        category_id: categoryId,
-        money_location: txn.money_location ?? "card",
-        note: txn.note ?? null,
-        goal_id: goalId ?? null,
-        credit_debt_id: creditId ?? null,
-        recurring_id: recurringId ?? null,
-      });
-    } catch {
-      /* skip invalid historical rows */
-    }
-  }
+  return validateBackup({ format: 'f1nancer-backup', version: 1, accountId: userId, project: new URL(supabaseUrl).origin,
+    exportedAt: new Date().toISOString(), sync: { hasSynced: false, pendingUploads: 0 }, tables }, userId, supabaseUrl);
 }

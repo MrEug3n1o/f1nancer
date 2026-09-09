@@ -1,3 +1,4 @@
+import { useAuth } from "../sync/AuthProvider";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { api } from "../api";
 import { CreditDebtCard } from "../components/CreditDebtCard";
@@ -14,6 +15,7 @@ type ComposerKind = "informal" | "rental";
 type Filter = "all" | "debt" | "rental";
 
 export function CreditsDebtsPage() {
+  const { dataRevision } = useAuth();
   const { defaultCurrency, currencies } = useApp();
   const [items, setItems] = useState<CreditDebt[]>([]);
   const [rentals, setRentals] = useState<Deposit[]>([]);
@@ -39,7 +41,6 @@ export function CreditsDebtsPage() {
   }, [defaultCurrency]);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const [cd, dep] = await Promise.all([
@@ -57,7 +58,7 @@ export function CreditsDebtsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, dataRevision]);
 
   function resetForm() {
     setName("");

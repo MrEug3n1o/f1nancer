@@ -1,110 +1,30 @@
-import { formatSyncError, syncErrorFromStatus, type SyncStatusError } from "@f1nancer/domain";
 import { useEffect, useState, type ComponentType } from "react";
-import { ActivityIndicator, InteractionManager, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, SafeAreaView, Platform, StatusBar as NativeStatusBar } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./sync/AuthProvider";
 import { AuthScreen } from "./screens/AuthScreen";
 import { colors } from "./screens/theme";
 
 function Gate() {
-  const { session, loading, configured } = useAuth();
+  const { session, loading, dbReady, dbError, syncError, syncInfo, retrySync } = useAuth();
   const [MainScreen, setMainScreen] = useState<ComponentType | null>(null);
-  const [dbReady, setDbReady] = useState(false);
-  const [dbError, setDbError] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState<SyncStatusError | null>(null);
-
-  const userId = session?.user.id ?? null;
-
-  // Connect once per signed-in user. Token refresh must not remount MainScreen.
   useEffect(() => {
-    if (!userId) {
-      setMainScreen(null);
-      setDbReady(true);
-      setDbError(null);
-      setSyncError(null);
-      return;
-    }
-    if (!configured) {
-      setDbReady(true);
-      return;
-    }
-
     let cancelled = false;
-    let unregister: (() => void) | undefined;
-    setDbReady(false);
-    setSyncError(null);
-    const task = InteractionManager.runAfterInteractions(() => {
-      void (async () => {
-        try {
-          const [{ getPowerSync }, { SupabaseConnector }, main] = await Promise.all([
-            import("./sync/database"),
-            import("./sync/powersyncConnector"),
-            import("./screens/MainScreen"),
-          ]);
-          const db = getPowerSync();
-          await db.waitForReady();
-          unregister = db.registerListener({
-            statusChanged: (status) => {
-              setSyncError(syncErrorFromStatus(status));
-            },
-          });
-          await db.connect(new SupabaseConnector());
-          if (!cancelled) {
-            setMainScreen(() => main.MainScreen);
-            setDbReady(true);
-          }
-        } catch (err) {
-          if (!cancelled) {
-            setDbError(formatSyncError(err));
-          }
-        }
-      })();
-    });
-    return () => {
-      cancelled = true;
-      unregister?.();
-      task.cancel();
-    };
-  }, [configured, userId]);
-
-  if (dbError) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.title}>Local database unavailable</Text>
-        <Text style={styles.body}>{dbError}</Text>
-      </View>
-    );
-  }
-  if (loading || (session && (!dbReady || !MainScreen))) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
-  if (session && MainScreen) {
-    return (
-      <View style={styles.fill}>
-        {syncError ? (
-          <View style={styles.banner} accessibilityRole="alert">
-            <Text style={styles.bannerTitle}>
-              {syncError.kind === "upload"
-                ? "Cloud sync upload failed"
-                : "Cloud sync is not connected"}
-            </Text>
-            <Text style={styles.bannerBody}>
-              {syncError.message}{" "}
-              {syncError.kind === "upload"
-                ? "Your data on this device is still here; changes are not reaching the cloud yet."
-                : "Your data on this device is still here; it just is not downloading from the cloud yet."}
-            </Text>
-          </View>
-        ) : null}
-        <MainScreen />
-      </View>
-    );
-  }
-  return <AuthScreen />;
+    if (session && dbReady) void import('./screens/MainScreen').then(main => { if (!cancelled) setMainScreen(() => main.MainScreen); });
+    return () => { cancelled = true; };
+  }, [session?.user.id, dbReady]);
+  if (dbError) return <View style={styles.center}><Text style={styles.title}>Local database unavailable</Text><Text>{dbError}</Text></View>;
+  if (loading || (session && (!dbReady || !MainScreen))) return <View style={styles.center}><ActivityIndicator /></View>;
+  if (!session || !MainScreen) return <AuthScreen />;
+  return <SafeAreaView style={styles.fill}>
+    <View style={styles.banner}>
+      <Text style={styles.bannerTitle}>{syncError ? syncError.message : syncInfo.connected && !syncInfo.hasSynced ? 'Downloading your data…' : syncInfo.connected ? 'Cloud connected' : 'Offline — local data available'}</Text>
+      <Text style={styles.bannerBody}>{syncInfo.pendingUploads} changes waiting to upload{syncInfo.lastSyncedAt ? ` · Last synced ${new Date(syncInfo.lastSyncedAt).toLocaleString()}` : ' · First cloud download not confirmed'}</Text>
+      {syncInfo.conflicts > 0 && <Text style={styles.bannerBody}>{syncInfo.conflicts} backup conflicts need review in Account.</Text>}
+      <Pressable accessibilityRole="button" onPress={() => void retrySync()}><Text style={styles.bannerBody}>Retry sync</Text></Pressable>
+    </View>
+    <MainScreen key={session.user.id} />
+  </SafeAreaView>;
 }
 
 export default function RootApp() {
@@ -117,7 +37,7 @@ export default function RootApp() {
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: colors.bg },
+  fill: { flex: 1, backgroundColor: colors.bg, paddingTop: Platform.OS === 'android' ? NativeStatusBar.currentHeight : 0 },
   center: {
     flex: 1,
     alignItems: "center",
@@ -129,13 +49,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: "700", color: colors.ink, textAlign: "center" },
   body: { color: colors.muted, textAlign: "center", lineHeight: 20 },
   banner: {
-    backgroundColor: "#3b1515",
+    backgroundColor: colors.bg,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#7f1d1d",
+    borderBottomColor: colors.muted,
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 4,
   },
-  bannerTitle: { color: "#fecaca", fontWeight: "700", fontSize: 14 },
-  bannerBody: { color: "#fca5a5", fontSize: 13, lineHeight: 18 },
+  bannerTitle: { color: colors.ink, fontWeight: "700", fontSize: 14 },
+  bannerBody: { color: colors.muted, fontSize: 13, lineHeight: 18 },
 });
