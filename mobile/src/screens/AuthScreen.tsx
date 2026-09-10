@@ -38,11 +38,14 @@ export function AuthScreen() {
       style={styles.shell}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <View style={styles.logo}>
+        <View style={styles.coin}><Text style={styles.coinText}>¢</Text></View>
+        <Text style={styles.brand}>f<Text style={styles.brandAccent}>1</Text>nancer</Text>
+      </View>
       <View style={styles.card}>
-        <Text style={styles.brand}>F1nancer</Text>
         <Text style={styles.title}>{mode === "signup" ? "Create account" : "Sign in"}</Text>
         <Text style={styles.muted}>
-          Same username as desktop. Works offline; syncs when you reconnect.
+          Your finances, on every device. Use the same account as desktop.
         </Text>
         {!configured || !isSyncConfigured() ? (
           <Text style={styles.error}>
@@ -95,31 +98,46 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 24,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.sidebar,
   },
+  logo: {
+    alignItems: "center",
+    marginBottom: 26,
+    gap: 10,
+  },
+  coin: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  coinText: { color: "#fff", fontSize: 38, lineHeight: 44, fontWeight: "800" },
   card: {
     backgroundColor: colors.elevated,
     borderRadius: 14,
-    padding: 20,
-    gap: 12,
+    padding: 22,
+    gap: 14,
     borderWidth: 1,
     borderColor: colors.line,
   },
-  brand: { fontSize: 28, fontWeight: "700", color: colors.ink },
-  title: { fontSize: 20, fontWeight: "600", color: colors.ink },
+  brand: { fontSize: 30, fontWeight: "600", color: colors.sidebarText, fontFamily: Platform.OS === "ios" ? "Georgia" : "serif" },
+  brandAccent: { color: colors.accentBright },
+  title: { fontSize: 26, fontWeight: "600", color: colors.ink, fontFamily: Platform.OS === "ios" ? "Georgia" : "serif" },
   muted: { color: colors.muted, lineHeight: 20 },
   error: { color: colors.danger },
   input: {
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 11,
+    padding: 13,
     backgroundColor: colors.input,
     color: colors.ink,
   },
   button: {
     backgroundColor: colors.accent,
-    borderRadius: 10,
+    borderRadius: 11,
     padding: 14,
     alignItems: "center",
   },

@@ -7,7 +7,7 @@ import {
   type UpdateCheckResult,
   type UpdateCheckStatus,
 } from "../updates/apkUpdates";
-import { colors } from "./theme";
+import { colors, type Palette } from "./theme";
 
 function statusLabel(status: UpdateCheckStatus, progress: number): string {
   switch (status) {
@@ -28,7 +28,8 @@ function statusLabel(status: UpdateCheckStatus, progress: number): string {
   }
 }
 
-export function AppUpdateCard({ active }: { active: boolean }) {
+export function AppUpdateCard({ active, palette = colors }: { active: boolean; palette?: Palette }) {
+  const styles = makeStyles(palette);
   const [info, setInfo] = useState<UpdateCheckResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -185,7 +186,7 @@ export function AppUpdateCard({ active }: { active: boolean }) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: Palette) { return StyleSheet.create({
   card: {
     backgroundColor: colors.elevated,
     borderRadius: 14,
@@ -238,4 +239,4 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: "#fff", fontWeight: "600" },
   disabled: { opacity: 0.45 },
-});
+}); }
