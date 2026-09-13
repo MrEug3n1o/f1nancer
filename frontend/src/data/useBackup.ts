@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { readUploadIssues, repairUpload, type UploadIssue, exportBackup, importBackup, parseBackup, previewBackup, resolveBackupConflict, type FinanceBackup, type BackupConflict } from '@f1nancer/domain';
 import { useAuth } from '../sync/AuthProvider';
 import { getPowerSync } from '../sync/database';
-import { supabaseUrl } from '../sync/config';
+import { firebaseProjectUrl } from '../sync/config';
 
 export function useBackup() {
   const { session, syncInfo, syncError, dataRevision, retrySync } = useAuth();
@@ -28,9 +28,9 @@ export function useBackup() {
     try { await action(); await refresh(); } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
-  const snapshot = () => exportBackup(db, userId, supabaseUrl, syncInfo);
+  const snapshot = () => exportBackup(db, userId, firebaseProjectUrl, syncInfo);
   async function stage(value: string | FinanceBackup) {
-    const next = typeof value === 'string' ? parseBackup(value, userId, supabaseUrl) : parseBackup(JSON.stringify(value), userId, supabaseUrl);
+    const next = typeof value === 'string' ? parseBackup(value, userId, firebaseProjectUrl) : parseBackup(JSON.stringify(value), userId, firebaseProjectUrl);
     setCurrent(await snapshot()); setBackup(next); setReplaceKeys(new Set());
   }
   async function apply() {
@@ -45,7 +45,7 @@ export function useBackup() {
     setMessage(useBackup ? 'Backup value queued for upload.' : 'Cloud value kept.');
   }
   async function repair(issue: UploadIssue) {
-    await repairUpload(db, issue, userId, supabaseUrl);
+    await repairUpload(db, issue, userId, firebaseProjectUrl);
     await retrySync();
     setMessage('Retrying with the reviewed current values. The original operation is retained in local recovery history.');
   }

@@ -3,19 +3,26 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View, SafeAreaView, Pla
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./sync/AuthProvider";
 import { AuthScreen } from "./screens/AuthScreen";
+import { EmailMigrationScreen } from "./screens/EmailMigrationScreen";
+import { EmailVerificationScreen } from "./screens/EmailVerificationScreen";
 import { colors } from "./screens/theme";
 
 function Gate() {
-  const { session, loading, dbReady, dbError, syncError, syncInfo, retrySync } = useAuth();
+  const { session, loading, dbReady, dbError, syncError, syncInfo, retrySync, requiresEmailMigration, requiresEmailVerification } = useAuth();
   const [MainScreen, setMainScreen] = useState<ComponentType | null>(null);
   useEffect(() => {
     let cancelled = false;
-    if (session && dbReady) void import('./screens/MainScreen').then(main => { if (!cancelled) setMainScreen(() => main.MainScreen); });
+    if (session && dbReady && !requiresEmailMigration && !requiresEmailVerification) void import('./screens/MainScreen').then(main => { if (!cancelled) setMainScreen(() => main.MainScreen); });
     return () => { cancelled = true; };
-  }, [session?.user.id, dbReady]);
+  }, [session?.user.id, dbReady, requiresEmailMigration, requiresEmailVerification]);
+  if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
+  if (!session) return <AuthScreen />;
+  if (requiresEmailMigration) return <EmailMigrationScreen />;
+  if (requiresEmailVerification) return <EmailVerificationScreen />;
   if (dbError) return <View style={styles.center}><Text style={styles.title}>Local database unavailable</Text><Text>{dbError}</Text></View>;
-  if (loading || (session && (!dbReady || !MainScreen))) return <View style={styles.center}><ActivityIndicator /></View>;
-  if (!session || !MainScreen) return <AuthScreen />;
+  if (!dbReady) return <View style={styles.center}><ActivityIndicator /></View>;
+  if (session && !MainScreen) return <View style={styles.center}><ActivityIndicator /></View>;
+  if (!MainScreen) return <AuthScreen />;
   const showSyncBanner = Boolean(
     syncError ||
     !syncInfo.connected ||

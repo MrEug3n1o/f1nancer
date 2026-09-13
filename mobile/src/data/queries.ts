@@ -1,4 +1,5 @@
 import { randomUUID } from "expo-crypto";
+import { v5 as uuidv5 } from "uuid";
 import {
   advanceRunDate, asBool, asInt, budgetSpentCents, byCurrency, currentMonth,
   enrichCreditDebt, enrichDeposit, goalProgressPct, goalSavedCents, monthOverview,
@@ -9,9 +10,9 @@ import {
   type Settings, type ThemeMode, type Transaction, type TrendPoint,
 } from "@f1nancer/domain";
 import { powerSync } from "../sync/database";
-import { getSupabase } from "../sync/supabaseClient";
 
 type Row = Record<string, unknown>;
+const RECURRING_TRANSACTION_NAMESPACE = '90c8f2e0-51c5-5ce2-9a4e-17e0cb7c2dd9';
 
 export interface MobileData {
   categories: Category[]; transactions: Transaction[]; budgets: Budget[]; goals: Goal[];
@@ -21,6 +22,7 @@ export interface MobileData {
 }
 
 export interface TransactionInput {
+  id?: string;
   amount: number; currency_code: string; date: string; type: CategoryType;
   category_id: string; money_location: MoneyLocation; note?: string | null;
   recurring_id?: string | null; goal_id?: string | null; credit_debt_id?: string | null;
@@ -161,8 +163,8 @@ export async function createTransaction(userId: string, input: TransactionInput)
   const category = await categoryById(userId, input.category_id);
   if (category.type !== input.type) throw new Error("Choose a matching category");
   if (input.goal_id && input.credit_debt_id) throw new Error("A transaction cannot belong to both a goal and a debt");
-  const id = randomUUID(); const ts = nowIso();
-  await exec(`INSERT INTO transactions (id, user_id, amount, currency_code, date, type, category_id, note, recurring_id, goal_id, credit_debt_id, money_location, created_at, updated_at)
+  const id = input.id ?? randomUUID(); const ts = nowIso();
+  await exec(`${input.id ? 'INSERT OR IGNORE' : 'INSERT'} INTO transactions (id, user_id, amount, currency_code, date, type, category_id, note, recurring_id, goal_id, credit_debt_id, money_location, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, userId, input.amount, code(input.currency_code), iso(input.date), input.type,
     input.category_id, input.note?.trim() || null, input.recurring_id ?? null, input.goal_id ?? null, input.credit_debt_id ?? null,
     input.money_location, ts, ts]);
@@ -243,12 +245,11 @@ export async function toggleRecurring(userId: string, id: string, active: boolea
   await exec("UPDATE recurring_rules SET active = ?, updated_at = ? WHERE id = ? AND user_id = ?", [active ? 1 : 0, nowIso(), id, userId]);
 }
 export async function processRecurring(userId: string) {
-  try { const { data, error } = await getSupabase().rpc("process_due_recurring_rules"); if (!error) return Number(data ?? 0); } catch { /* offline */ }
   const data = await loadMobileData(userId); let created = 0; const today = todayISO();
   for (const rule of data.recurring.filter((item) => item.active && item.next_run_date <= today)) {
     let next = rule.next_run_date;
     while (next <= today) {
-      await createTransaction(userId, { amount: rule.amount, currency_code: rule.currency_code, date: next, type: rule.type, category_id: rule.category_id, money_location: rule.money_location, note: rule.note, recurring_id: rule.id });
+      await createTransaction(userId, { id: uuidv5(`${rule.id}:${next}`, RECURRING_TRANSACTION_NAMESPACE), amount: rule.amount, currency_code: rule.currency_code, date: next, type: rule.type, category_id: rule.category_id, money_location: rule.money_location, note: rule.note, recurring_id: rule.id });
       next = advanceRunDate(next, rule.cadence, rule.billing_day); created += 1;
     }
     await exec("UPDATE recurring_rules SET next_run_date = ?, updated_at = ? WHERE id = ? AND user_id = ?", [next, nowIso(), rule.id, userId]);

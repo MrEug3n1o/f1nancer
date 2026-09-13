@@ -1,17 +1,17 @@
 # F1nancer
 
-Offline-first personal finance app for **desktop and mobile**. Track income and expenses, budgets, savings goals, recurring payments, and simple charts. Sign in with a username and password; the same account syncs across devices. Each device keeps a local SQLite copy and works fully offline.
+Offline-first personal finance app for **desktop and mobile**. Track income and expenses, budgets, savings goals, recurring payments, and simple charts. Sign in with email and password; the same account syncs across devices. Each device keeps a local SQLite copy and works fully offline.
 
 ## Stack
 
 - **Desktop UI:** React + TypeScript + Vite (`frontend/`), bundled into the app
 - **Mobile:** Expo / React Native (`mobile/`)
-- **Sync:** Supabase (Auth + Postgres) + PowerSync (on-device SQLite)
+- **Sync:** Firebase Authentication + Cloud Firestore, with on-device SQLite
 - **Shared domain:** `@f1nancer/domain` (`packages/domain`)
 - **Desktop shell:** pywebview + PyInstaller (`desktop/`) — macOS `.app`/DMG and Windows Setup.exe
 - **Local engine (packaging / updates / legacy import):** FastAPI (`backend/`)
 
-Cloud setup (migrations, username auth, PowerSync rules): see [`supabase/README.md`](supabase/README.md). Copy [`frontend/.env.example`](frontend/.env.example) and [`mobile/.env.example`](mobile/.env.example).
+Firebase setup and the Supabase migration/cutover runbook are in [`FIREBASE_MIGRATION.md`](FIREBASE_MIGRATION.md). Firestore rules and indexes are versioned in [`firestore.rules`](firestore.rules) and [`firestore.indexes.json`](firestore.indexes.json).
 
 ## Mac
 
@@ -74,7 +74,7 @@ Optional debug zip: `$env:MAKE_ZIP="1"; .\desktop\build.ps1`
 
 Push a `v*` tag or run the **App release** workflow (`workflow_dispatch`, [`.github/workflows/desktop-release.yml`](.github/workflows/desktop-release.yml)) on GitHub Actions. Either path publishes the Mac DMG, Windows Setup.exe, and Android APK as a GitHub Release. Manual runs tag the release as `v` plus `APP_VERSION` from `backend/app/version.py`.
 
-Android CI needs GitHub secrets: `EXPO_TOKEN`, `EAS_PROJECT_ID`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_POWERSYNC_URL`. One-time local setup: `cd mobile && npx eas-cli login && npx eas-cli init`, paste the project id into `COMMITTED_EAS_PROJECT_ID` in [`mobile/app.config.js`](mobile/app.config.js) (or only use the `EAS_PROJECT_ID` secret), then run one interactive `npx eas-cli build -p android --profile apk` so EAS can create the Android keystore.
+Android CI needs GitHub secrets `EXPO_TOKEN` and `EAS_PROJECT_ID`. Firebase client identifiers are public project configuration and are committed with safe environment overrides. One-time local setup: `cd mobile && npx eas-cli login && npx eas-cli init`, then run one interactive `npx eas-cli build -p android --profile apk` so EAS can create the Android keystore.
 
 ## In-app updates
 
@@ -85,7 +85,7 @@ Android CI needs GitHub secrets: `EXPO_TOKEN`, `EAS_PROJECT_ID`, `EXPO_PUBLIC_SU
 
 Your data stays in the app data folder. A source checkout cannot self-install from Settings — use `desktop/build.sh` or `desktop/build.ps1` instead.
 
-**Android:** Account → **App updates** checks the same GitHub Releases feed for `F1nancer-<version>.apk`, downloads it, and opens the system installer. Confirm the Android install prompt (and allow installs from this app if asked). Local PowerSync data stays on the device.
+**Android:** Account → **App updates** checks the same GitHub Releases feed for `F1nancer-<version>.apk`, downloads it, and opens the system installer. Confirm the Android install prompt (and allow installs from this app if asked). Local SQLite data stays on the device.
 
 ## Desktop development (no packaging)
 
@@ -117,7 +117,7 @@ Vite proxies `/api` to the local engine. Open the URL Vite prints (usually http:
 
 ## Backup
 
-Signed-in data syncs to your F1nancer account. The sync status shows first-download progress, pending uploads, errors, and the last successful sync. Each device also keeps a local SQLite database (PowerSync). Signing out disconnects sync and keeps the local copy and pending uploads for that account.
+After Firebase verifies the account email, signed-in data syncs to the account's private Firestore namespace. Unverified accounts cannot create the account document or read/write finance data. The sync status shows first-download progress, pending uploads, errors, and the last successful sync. Each device also keeps a local SQLite database. Signing out disconnects sync and keeps the local copy and pending uploads for that account.
 
 Legacy (pre-sync) desktop files can be imported from Settings after you sign in:
 
@@ -139,15 +139,13 @@ On Android: open the APK → allow install from that source if prompted → Inst
 
 ```bash
 cd mobile
-cp .env.example .env
-# fill Supabase + PowerSync URLs
 npm install
 npx expo start
 ```
 
-Use the same username and password as desktop. Create a transaction in airplane mode, then reconnect — it should appear on desktop and in the Supabase table editor.
+Use the same email and password as desktop. Existing pre-migration accounts may use their old username once and will then be asked to verify a real email. Create a transaction in airplane mode, then reconnect — it should appear on desktop and in Firestore.
 
-Production APK builds use EAS (`mobile/eas.json` profile `apk`) and bake in the three `EXPO_PUBLIC_*` values from CI secrets (not a committed `.env`).
+Production APK builds use EAS (`mobile/eas.json` profile `apk`).
 
 ## Features
 
@@ -162,7 +160,7 @@ Production APK builds use EAS (`mobile/eas.json` profile `apk`) and bake in the 
 
 In desktop **Settings → Data & sync**, or mobile **Account → Backup & transfer**, choose **Export backup**. Transfer the JSON file to another device, sign into the same account, and choose **Import backup**. Review the preview and confirm the merge. Existing conflicting records are kept unless you explicitly select the backup value; records absent from the file are never deleted.
 
-Export and import work from local SQLite while PowerSync is unavailable. A device that has not finished downloading may export an incomplete copy. Uploaded imports are checked again against cloud data; any unseen conflicts are retained for review in the same backup panel. Recovery snapshots are saved before every import and can be exported there. If an upload is rejected, correct the record, open its rejected-upload review, and choose **Retry with current values**. The original operation is retained locally; acknowledgement still requires server acceptance. Backup files contain readable financial data and no passwords or access tokens.
+Export and import work from local SQLite while Firestore is unavailable. A device that has not finished downloading may export an incomplete copy. Uploaded imports are checked against cloud data; unseen conflicts are retained for review in the same backup panel. Recovery snapshots are saved before every import and can be exported there. The original operation remains local until Firestore acknowledges it. Backup files contain readable financial data and no passwords or access tokens.
 
 **Previous desktop data** is an explicit previewed migration from the old FastAPI database. It retains statuses and relationships and uses stable IDs, so repeating the migration does not create additional copies. Invalid historical data is reported before any writes.
 
@@ -177,6 +175,6 @@ npm --prefix frontend run test:sync
 backend/.venv/bin/python -m unittest discover -s desktop/tests -v
 ```
 
-The opt-in live test creates and removes a disposable cloud account. With the repaired migration deployed and Vite running at `127.0.0.1:5173`, run `F1NANCER_LIVE_TEST=1 npm --prefix frontend run test:cloud`. Chrome must be installed. It checks two isolated browser clients, offline edits, fresh-client backup restore, repeat import, and reload persistence. It does not substitute for testing the installed Android APK or Windows WebView.
+Run Firestore rule isolation tests with Java 21 using `firebase emulators:exec --only firestore "npm --prefix tools/firebase-rules-tests test"`. The two-browser Auth/Firestore acceptance test is `firebase emulators:exec --only auth,firestore "env F1NANCER_LIVE_TEST=1 VITE_USE_FIREBASE_EMULATORS=1 npm --prefix frontend run test:cloud" --project f1nancer-rules-test`. Emulator success does not substitute for an installed Android APK or Windows WebView.
 
-Detailed cloud-repair evidence and remaining native device checks: [verification report](supabase/VERIFICATION.md).
+Migration evidence, rollback gates, and the remaining native-device checks are tracked in [`FIREBASE_MIGRATION.md`](FIREBASE_MIGRATION.md).

@@ -2250,6 +2250,28 @@ textarea:focus {
   margin: 0;
 }
 
+.email-consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.email-consent-row input {
+  margin-top: 0.2rem;
+}
+
+.email-consent-row span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.email-consent-row small {
+  color: var(--muted);
+}
+
 [data-theme="dark"] .btn.ghost {
   background: rgba(255, 255, 255, 0.04);
 }
@@ -3093,4 +3115,3 @@ textarea:focus {
   background: var(--error-bg);
   margin-bottom: 1rem;
 }
-

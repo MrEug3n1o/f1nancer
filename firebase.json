@@ -1,0 +1,25 @@
+{
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "f1nancer.firebaseapp.com",
+      "f1nancer.web.app"
+    ],
+    "providers": {
+      "anonymous": false,
+      "emailPassword": true
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8080
+    }
+  }
+}

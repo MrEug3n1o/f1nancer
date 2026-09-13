@@ -1,57 +1,78 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { formatSyncError, syncErrorFromStatus, usernameToEmail, validatePassword, validateUsername, createSerialQueue, FINANCE_TABLES, type SyncStatusError } from "@f1nancer/domain";
-import type { Session } from "@supabase/supabase-js";
-import { isSyncConfigured, supabaseAnonKey, supabaseUrl } from "./config";
-import { getSupabase, supabase, readCachedSession } from "./supabaseClient";
-import { bindDataLayer } from "../data/repo";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createSerialQueue, FINANCE_TABLES, formatSyncError, syncFirestoreAccount,
+  usernameToEmail, validatePassword, validateUsername, type SyncStatusError,
+} from '@f1nancer/domain';
+import {
+  createUserWithEmailAndPassword, onAuthStateChanged, reload,
+  sendEmailVerification, signInWithEmailAndPassword, signOut as firebaseSignOut,
+  verifyBeforeUpdateEmail, type User,
+} from 'firebase/auth';
+import { bindDataLayer } from '../data/repo';
+import { firebaseAuth } from './firebaseClient';
+import { firebaseProjectUrl, isSyncConfigured } from './config';
+import { FirebaseCloudAdapter } from './firestoreCloud';
+import {
+  finishAccountEmailMigration, loadAccountProfile, seedFirebaseAccount,
+  updateMarketingEmailConsent,
+  type AccountProfile,
+} from './firebaseAccount';
 
+const LEGACY_EMAIL_SUFFIX = '@users.f1nancer.local';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export interface AppSession { user: { id: string; email: string | null } }
 export interface SyncInfo { connected: boolean; hasSynced: boolean; pendingUploads: number; lastSyncedAt: string | null; conflicts: number }
 interface AuthContextValue {
-  session: Session | null; username: string | null; loading: boolean; configured: boolean;
-  dbReady: boolean; dbError: string | null; syncError: SyncStatusError | null;
-  syncInfo: SyncInfo; dataRevision: number;
-  signIn(username: string, password: string): Promise<void>;
-  signUp(username: string, password: string): Promise<void>;
+  session: AppSession | null; email: string | null;
+  loading: boolean; configured: boolean; dbReady: boolean; dbError: string | null;
+  syncError: SyncStatusError | null; syncInfo: SyncInfo; dataRevision: number;
+  requiresEmailMigration: boolean;
+  requiresEmailVerification: boolean;
+  marketingEmailConsent: boolean;
+  signIn(identifier: string, password: string): Promise<void>;
+  signUp(email: string, password: string): Promise<void>;
   signOut(): Promise<void>; retrySync(): Promise<void>;
+  requestEmailMigration(email: string): Promise<void>;
+  refreshEmailMigration(): Promise<void>;
+  resendEmailVerification(): Promise<void>;
+  refreshEmailVerification(): Promise<void>;
+  setMarketingEmailConsent(consent: boolean): Promise<void>;
 }
+
 const serializeAuth = createSerialQueue();
 const AuthContext = createContext<AuthContextValue | null>(null);
 const emptySync: SyncInfo = { connected: false, hasSynced: false, pendingUploads: 0, lastSyncedAt: null, conflicts: 0 };
-async function authUsername(action: "signin" | "signup", username: string, password: string) {
-  const normalized = validateUsername(username);
-  validatePassword(password);
-  const endpoint = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/auth-username`;
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
-    },
-    body: JSON.stringify({ action, username: normalized, password }),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(body.error || "Authentication failed");
+
+function normalizedEmail(value: string): string {
+  const email = value.trim().toLowerCase();
+  if (!EMAIL_PATTERN.test(email) || email.length > 254) throw new Error('Enter a valid email address.');
+  if (email.endsWith(LEGACY_EMAIL_SUFFIX)) throw new Error('Enter your real email address.');
+  return email;
+}
+
+function signInEmail(identifier: string): string {
+  const value = identifier.trim().toLowerCase();
+  return value.includes('@') ? normalizedEmail(value) : usernameToEmail(validateUsername(value));
+}
+
+async function loadOrSeedAccountProfile(user: User): Promise<AccountProfile> {
+  let account = await loadAccountProfile(user.uid);
+  if (!account && user.email && !user.email.endsWith(LEGACY_EMAIL_SUFFIX)) {
+    await seedFirebaseAccount(user.uid, user.email);
+    account = await loadAccountProfile(user.uid);
   }
-  if (body.session) {
-    const { error } = await supabase.auth.setSession({
-      access_token: body.session.access_token,
-      refresh_token: body.session.refresh_token,
-    });
-    if (error) throw error;
-    return;
-  }
-  const { error } = await supabase.auth.signInWithPassword({
-    email: usernameToEmail(normalized),
-    password,
-  });
-  if (error) throw new Error(error.message);
+  if (!account) throw new Error('Account data is not ready. Try again shortly.');
+  return account;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [readyUser, setReadyUser] = useState<string | null>(null);
   const [dbError, setDbError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<SyncStatusError | null>(null);
@@ -59,100 +80,140 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [dataRevision, setDataRevision] = useState(0);
   const retry = useRef<(() => Promise<void>) | null>(null);
   const configured = isSyncConfigured();
-  const userId = session?.user.id ?? null;
+  const userId = user?.uid ?? null;
+  const profileUid = profile?.uid ?? null;
+
   useEffect(() => {
     if (!configured) { setLoading(false); return; }
-    let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
-    void (async () => {
-      let cached = await readCachedSession();
-      if (cancelled) return;
-      if (cached) { setSession(cached); setLoading(false); }
-      let eventReceived = false;
-      const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
-        if (cancelled) return;
-        if (event === 'SIGNED_OUT') cached = null;
-        if (event === 'INITIAL_SESSION' && !next && cached) return;
-        eventReceived = true;
-        setSession(next); setLoading(false);
-      });
-      unsubscribe = () => sub.subscription.unsubscribe();
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (cancelled || eventReceived) return;
-        if (error) setSyncError({ kind: 'download', message: 'Cloud sign-in could not refresh. Your saved local data is available; reconnect or sign in again.' });
-        else setSession(data.session);
-      } catch (err) {
-        if (!cancelled) setSyncError({ kind: 'download', message: formatSyncError(err) });
-      } finally { if (!cancelled) setLoading(false); }
-    })().catch(err => { if (!cancelled) { setDbError(formatSyncError(err)); setLoading(false); } });
-    return () => { cancelled = true; unsubscribe?.(); };
+    return onAuthStateChanged(firebaseAuth, next => {
+      setUser(next); setEmailVerified(Boolean(next?.emailVerified)); setLoading(false); setAccountError(null);
+      if (!next || !next.emailVerified) { setProfile(null); setAccountLoading(false); }
+      else {
+        setProfile(null);
+        setAccountLoading(true);
+        void loadOrSeedAccountProfile(next)
+          .then(account => { if (firebaseAuth.currentUser?.uid === next.uid) setProfile(account); })
+          .catch(error => { if (firebaseAuth.currentUser?.uid === next.uid) setAccountError(formatSyncError(error)); })
+          .finally(() => { if (firebaseAuth.currentUser?.uid === next.uid) setAccountLoading(false); });
+      }
+    });
   }, [configured]);
 
   useEffect(() => {
     let cancelled = false;
-    const cleanup: (() => void)[] = [];
+    let syncing = false;
+    let interval: ReturnType<typeof setInterval> | undefined;
+    let unsubscribeLocal: (() => void) | undefined;
     setReadyUser(null); setDbError(null); setSyncError(null); setSyncInfo(emptySync);
     retry.current = null;
-    if (!userId) {
-      bindDataLayer(null, null);
-      return;
-    }
-    void Promise.all([import("./database"), import("./powersyncConnector")]).then(([m, { SupabaseConnector }]) => m.serializeSync(async () => {
-      if (cancelled) return;
+    if (!userId || !emailVerified || !profileUid) { bindDataLayer(null, null); return; }
+    void import('./database').then(m => m.serializeSync(async () => {
       const { db, instanceId } = await m.openAccountDatabase(userId);
-      if (cancelled) { await db.disconnect(); return; }
+      if (cancelled) { await db.close(); return; }
       bindDataLayer(db, userId);
-      cleanup.push(() => { void m.serializeSync(() => db.disconnect()).catch(() => undefined); });
-      const connector = new SupabaseConnector(userId, instanceId);
-      let refreshing = false;
-      const refreshStatus = async () => {
-        if (cancelled || refreshing) return;
-        refreshing = true;
-        try {
-          const stats = await db.getUploadQueueStats();
-          const [conflicts] = await db.getAll<{ count: number }>('SELECT count(*) AS count FROM f1_conflicts');
-          const status = db.currentStatus;
-          if (!cancelled) {
-            setSyncError(syncErrorFromStatus(status));
-            setSyncInfo({ connected: status.connected, hasSynced: Boolean(status.hasSynced), pendingUploads: stats.count,
-              lastSyncedAt: status.lastSyncedAt?.toISOString() ?? null, conflicts: conflicts?.count ?? 0 });
-          }
-        } catch (err) { if (!cancelled) setSyncError({ kind: 'download', message: formatSyncError(err) }); }
-        finally { refreshing = false; }
-      };
-      cleanup.push(db.registerListener({ statusChanged: () => { void refreshStatus(); } }));
-      cleanup.push(db.onChange({ onChange: () => { if (!cancelled) { setDataRevision(v => v + 1); void refreshStatus(); } } }, { tables: [...FINANCE_TABLES] }));
-      const interval = setInterval(() => { void refreshStatus(); }, 3000);
-      cleanup.push(() => clearInterval(interval));
-      retry.current = () => m.serializeSync(async () => {
-        if (cancelled) return;
-        await db.disconnect(); await db.connect(connector); await refreshStatus();
-      });
       setReadyUser(userId);
-      await refreshStatus();
-      try { await db.connect(connector); }
-      catch (err) { if (!cancelled) setSyncError({ kind: 'download', message: formatSyncError(err) }); }
-    })).catch(err => { if (!cancelled) setDbError(formatSyncError(err)); });
-    return () => { cancelled = true; retry.current = null; cleanup.forEach(dispose => dispose()); bindDataLayer(null, null); };
-  }, [userId]);
+      const cloud = new FirebaseCloudAdapter(userId);
+      const run = async () => {
+        if (cancelled || syncing) return;
+        syncing = true;
+        try {
+          const result = await syncFirestoreAccount(db, cloud, userId, instanceId, firebaseProjectUrl);
+          const queue = await db.getUploadQueueStats();
+          const [conflictRow] = await db.getAll<{ count: number }>('SELECT count(*) AS count FROM f1_conflicts');
+          if (!cancelled) {
+            setSyncInfo({ connected: true, hasSynced: true, pendingUploads: queue.count,
+              lastSyncedAt: result.syncedAt, conflicts: conflictRow?.count ?? 0 });
+            setSyncError(null); setDataRevision(value => value + 1);
+          }
+        } catch (error) {
+          const queue = await db.getUploadQueueStats().catch(() => ({ count: 0 }));
+          if (!cancelled) {
+            setSyncInfo(previous => ({ ...previous, connected: false, pendingUploads: queue.count }));
+            setSyncError({ kind: 'download', message: formatSyncError(error) });
+          }
+        } finally { syncing = false; }
+      };
+      retry.current = run;
+      unsubscribeLocal = db.onChange({ onChange: () => { if (!syncing) void run(); } }, { tables: [...FINANCE_TABLES] });
+      interval = setInterval(() => { void run(); }, 10000);
+      await run();
+    })).catch(error => { if (!cancelled) setDbError(formatSyncError(error)); });
+    return () => {
+      cancelled = true; retry.current = null; unsubscribeLocal?.(); if (interval) clearInterval(interval);
+      bindDataLayer(null, null);
+      void import('./database').then(m => m.serializeSync(() => m.disconnectDatabase())).catch(() => undefined);
+    };
+  }, [userId, emailVerified, profileUid]);
 
-  const signIn = useCallback((username: string, password: string) => serializeAuth(() => authUsername('signin', username, password)), []);
-  const signUp = useCallback((username: string, password: string) => serializeAuth(() => authUsername('signup', username, password)), []);
+  const signIn = useCallback((identifier: string, password: string) => serializeAuth(async () => {
+    validatePassword(password);
+    await signInWithEmailAndPassword(firebaseAuth, signInEmail(identifier), password);
+  }), []);
+  const signUp = useCallback((emailInput: string, password: string) => serializeAuth(async () => {
+    const email = normalizedEmail(emailInput); validatePassword(password);
+    const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+    await sendEmailVerification(credential.user);
+  }), []);
   const signOut = useCallback(() => serializeAuth(async () => {
     const m = await import('./database');
-    await m.serializeSync(async () => {
-      await m.disconnectDatabase();
-      const { error } = await getSupabase().auth.signOut({ scope: 'local' });
-      if (error) throw error;
-    });
+    await m.serializeSync(async () => { await m.disconnectDatabase(); await firebaseSignOut(firebaseAuth); });
   }), []);
-  const retrySync = useCallback(async () => {
-    try { setSyncError(null); await retry.current?.(); }
-    catch (err) { setSyncError({ kind: 'download', message: formatSyncError(err) }); }
+  const retrySync = useCallback(async () => { setSyncError(null); await retry.current?.(); }, []);
+  const requestEmailMigration = useCallback(async (emailInput: string) => {
+    if (!firebaseAuth.currentUser) throw new Error('Sign in again first.');
+    await verifyBeforeUpdateEmail(firebaseAuth.currentUser, normalizedEmail(emailInput));
   }, []);
-  const username = useMemo(() => session?.user.user_metadata?.username || session?.user.email?.split('@')[0] || null, [session]);
-  return <AuthContext.Provider value={{ session, username, loading, configured, dbReady: !!userId && readyUser === userId,
-    dbError, syncError, syncInfo, dataRevision, signIn, signUp, signOut, retrySync }}>{children}</AuthContext.Provider>;
+  const refreshEmailMigration = useCallback(async () => {
+    const current = firebaseAuth.currentUser;
+    if (!current) throw new Error('Sign in again first.');
+    await reload(current);
+    if (!current.email || current.email.endsWith(LEGACY_EMAIL_SUFFIX)) {
+      throw new Error('The new email is not verified yet. Open the link we sent, then try again.');
+    }
+    await current.getIdToken(true);
+    await finishAccountEmailMigration(current.uid, current.email);
+    setEmailVerified(current.emailVerified);
+    setProfile(await loadAccountProfile(current.uid));
+    setUser(firebaseAuth.currentUser);
+  }, []);
+  const resendEmailVerification = useCallback(async () => {
+    const current = firebaseAuth.currentUser;
+    if (!current) throw new Error('Sign in again first.');
+    if (current.emailVerified) return;
+    await sendEmailVerification(current);
+  }, []);
+  const refreshEmailVerification = useCallback(async () => {
+    const current = firebaseAuth.currentUser;
+    if (!current) throw new Error('Sign in again first.');
+    await reload(current);
+    if (!current.emailVerified) throw new Error('The email is not verified yet. Open the link we sent, then try again.');
+    await current.getIdToken(true);
+    const account = await loadOrSeedAccountProfile(current);
+    setProfile(account); setEmailVerified(true); setUser(firebaseAuth.currentUser);
+  }, []);
+  const setMarketingEmailConsent = useCallback(async (consent: boolean) => {
+    const current = firebaseAuth.currentUser;
+    if (!current?.emailVerified) throw new Error('Verify your email before changing email preferences.');
+    await updateMarketingEmailConsent(current.uid, consent);
+    const account = await loadAccountProfile(current.uid);
+    if (!account) throw new Error('Account data is not ready. Try again shortly.');
+    setProfile(account);
+  }, []);
+
+  const session = useMemo<AppSession | null>(() => user ? { user: { id: user.uid, email: user.email } } : null, [user]);
+  const requiresEmailMigration = Boolean(user?.email?.endsWith(LEGACY_EMAIL_SUFFIX) || profile?.email_migration_required);
+  const requiresEmailVerification = Boolean(user && !emailVerified);
+  return <AuthContext.Provider value={{ session, email: user?.email ?? null, loading: loading || accountLoading, configured,
+    dbReady: !!userId && readyUser === userId, dbError: accountError ?? dbError, syncError, syncInfo, dataRevision,
+    requiresEmailMigration, requiresEmailVerification,
+    marketingEmailConsent: Boolean(profile?.marketing_email_consent),
+    signIn, signUp, signOut, retrySync,
+    requestEmailMigration, refreshEmailMigration, resendEmailVerification,
+    refreshEmailVerification, setMarketingEmailConsent }}>{children}</AuthContext.Provider>;
 }
-export function useAuth() { const ctx = useContext(AuthContext); if (!ctx) throw new Error('useAuth must be used within AuthProvider'); return ctx; }
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+}

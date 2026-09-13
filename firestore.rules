@@ -1,0 +1,333 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed data model
+// ===============================================================
+// /users/{uid}: private account containing uid/email, nullable legacy username,
+// ISO created/updated timestamps, email-migration and marketing-consent flags,
+// nullable consent timestamp, and immutable migration source.
+// /users/{uid}/currencies/{uuid}: code, name, owner and ISO timestamps.
+// /users/{uid}/categories/{uuid}: name, income/expense type, color, owner and timestamps.
+// /users/{uid}/settings/{uuid}: currency/theme/locale plus bounded JSON strings.
+// /users/{uid}/goals/{uuid}: name, 32-bit amounts, currency, nullable date and status.
+// /users/{uid}/deposits/{uuid}: bounded metadata, positive principal, dates,
+// nullable rate/text, status and cash/card location.
+// /users/{uid}/credit_debts/{uuid}: bounded metadata, direction/source,
+// positive principal, dates, nullable rate/text and status.
+// /users/{uid}/recurring_rules/{uuid}: positive amount, currency, same-owner
+// category reference, type/cadence/day/date, nullable note, active integer and location.
+// /users/{uid}/budgets/{uuid}: same-owner category, positive limit and currency.
+// /users/{uid}/transactions/{uuid}: positive amount, currency/date/type,
+// same-owner category and nullable recurring/goal/credit-debt references, note and location.
+// Every finance record also has immutable UUID id/user_id/created_at fields.
+// PostgreSQL dates/timestamps and settings JSON remain bounded strings during
+// compatibility migration. All client access requires a verified Firebase email.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function hasVerifiedEmail() {
+      return isAuthenticated() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return hasVerifiedEmail() && request.auth.uid == uid;
+    }
+
+    function uidUnchanged(uid, data) {
+      return data.user_id == uid;
+    }
+
+    function uidNotModified() {
+      return request.resource.data.user_id == resource.data.user_id;
+    }
+
+    function accountExists(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function accountExistsAfter(uid) {
+      return existsAfter(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function exactFields(data, fields) {
+      return data.keys().hasAll(fields) && data.keys().hasOnly(fields);
+    }
+
+    function validUid(value) {
+      return value is string && value.size() >= 1 && value.size() <= 128;
+    }
+
+    function validUuid(value) {
+      return value is string && value.matches('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+    }
+
+    function validIsoTimestamp(value) {
+      return value is string && value.size() >= 20 && value.size() <= 35
+        && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$');
+    }
+
+    function validDate(value) {
+      return value is string
+        && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])-([0-2][0-9]|3[01])$');
+    }
+
+    function validCurrency(value) {
+      return value is string && value.matches('^[A-Z]{3}$');
+    }
+
+    function validText(value, maximum) {
+      return value is string && value.size() >= 1 && value.size() <= maximum;
+    }
+
+    function validNullableText(value, maximum) {
+      return value == null || (value is string && value.size() <= maximum);
+    }
+
+    function validInt32(value) {
+      return value is int && value >= -2147483648 && value <= 2147483647;
+    }
+
+    function referenceExists(uid, collectionName, recordId) {
+      return exists(/databases/$(database)/documents/users/$(uid)/$(collectionName)/$(recordId));
+    }
+
+    function validBase(data, uid, recordId) {
+      return validUuid(recordId)
+        && data.id == recordId
+        && validUid(data.user_id)
+        && uidUnchanged(uid, data)
+        && validIsoTimestamp(data.created_at)
+        && validIsoTimestamp(data.updated_at);
+    }
+
+    function immutableBase() {
+      return request.resource.data.id == resource.data.id
+        && uidNotModified()
+        && request.resource.data.created_at == resource.data.created_at;
+    }
+
+    function validUser(data, uid) {
+      return exactFields(data, [
+          'uid', 'email', 'legacy_username', 'created_at', 'updated_at',
+          'email_migration_required', 'marketing_email_consent',
+          'marketing_email_consent_at', 'migration_source'
+        ])
+        && data.uid == uid
+        && validUid(data.uid)
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 254
+        && data.email == request.auth.token.email
+        && validNullableText(data.legacy_username, 32)
+        && validIsoTimestamp(data.created_at)
+        && validIsoTimestamp(data.updated_at)
+        && data.email_migration_required is bool
+        && data.marketing_email_consent is bool
+        && ((!data.marketing_email_consent && data.marketing_email_consent_at == null)
+          || (data.marketing_email_consent && validIsoTimestamp(data.marketing_email_consent_at)))
+        && data.migration_source in ['firebase', 'supabase'];
+    }
+
+    function validConsentTransition() {
+      return (request.resource.data.marketing_email_consent == resource.data.marketing_email_consent
+          && request.resource.data.marketing_email_consent_at == resource.data.marketing_email_consent_at)
+        || (!resource.data.marketing_email_consent
+          && request.resource.data.marketing_email_consent
+          && request.resource.data.marketing_email_consent_at != null)
+        || (resource.data.marketing_email_consent
+          && !request.resource.data.marketing_email_consent
+          && request.resource.data.marketing_email_consent_at == null);
+    }
+
+    function validCurrencyDoc(data, uid, recordId) {
+      return exactFields(data, ['id', 'user_id', 'created_at', 'updated_at', 'code', 'name'])
+        && validBase(data, uid, recordId)
+        && validCurrency(data.code)
+        && validText(data.name, 80);
+    }
+
+    function validCategory(data, uid, recordId) {
+      return exactFields(data, ['id', 'user_id', 'created_at', 'updated_at', 'name', 'type', 'color'])
+        && validBase(data, uid, recordId)
+        && validText(data.name, 120)
+        && data.type in ['income', 'expense']
+        && data.color is string
+        && data.color.matches('^#[0-9a-fA-F]{6}$');
+    }
+
+    function validSettings(data, uid, recordId) {
+      return exactFields(data, [
+          'id', 'user_id', 'created_at', 'updated_at', 'default_currency_code',
+          'theme', 'locale', 'dashboard_widgets', 'stats_charts',
+          'dashboard_widget_views', 'dashboard_widget_layout'
+        ])
+        && validBase(data, uid, recordId)
+        && validCurrency(data.default_currency_code)
+        && data.theme in ['light', 'dark', 'system']
+        && validText(data.locale, 35)
+        && data.dashboard_widgets is string && data.dashboard_widgets.size() <= 100000
+        && data.stats_charts is string && data.stats_charts.size() <= 100000
+        && data.dashboard_widget_views is string && data.dashboard_widget_views.size() <= 100000
+        && data.dashboard_widget_layout is string && data.dashboard_widget_layout.size() <= 100000;
+    }
+
+    function validGoal(data, uid, recordId) {
+      return exactFields(data, [
+          'id', 'user_id', 'created_at', 'updated_at', 'name', 'target_amount',
+          'current_amount', 'currency_code', 'deadline', 'status'
+        ])
+        && validBase(data, uid, recordId)
+        && validText(data.name, 120)
+        && validInt32(data.target_amount)
+        && data.target_amount > 0
+        && validInt32(data.current_amount)
+        && validCurrency(data.currency_code)
+        && (data.deadline == null || validDate(data.deadline))
+        && data.status in ['active', 'completed', 'cancelled'];
+    }
+
+    function validDeposit(data, uid, recordId) {
+      return exactFields(data, [
+          'id', 'user_id', 'created_at', 'updated_at', 'name', 'type',
+          'principal_cents', 'currency_code', 'start_date', 'end_date',
+          'annual_rate_bps', 'counterparty', 'note', 'status', 'money_location'
+        ])
+        && validBase(data, uid, recordId)
+        && validText(data.name, 120)
+        && data.type in ['bank', 'rental']
+        && validInt32(data.principal_cents) && data.principal_cents > 0
+        && validCurrency(data.currency_code)
+        && validDate(data.start_date) && validDate(data.end_date)
+        && (data.annual_rate_bps == null || validInt32(data.annual_rate_bps))
+        && validNullableText(data.counterparty, 200)
+        && validNullableText(data.note, 2000)
+        && data.status in ['active', 'matured', 'returned', 'cancelled']
+        && data.money_location in ['cash', 'card'];
+    }
+
+    function validCreditDebt(data, uid, recordId) {
+      return exactFields(data, [
+          'id', 'user_id', 'created_at', 'updated_at', 'name', 'direction',
+          'source', 'principal_cents', 'currency_code', 'start_date', 'due_date',
+          'annual_rate_bps', 'counterparty', 'note', 'status'
+        ])
+        && validBase(data, uid, recordId)
+        && validText(data.name, 120)
+        && data.direction in ['credit', 'debt']
+        && data.source in ['bank', 'informal']
+        && validInt32(data.principal_cents) && data.principal_cents > 0
+        && validCurrency(data.currency_code)
+        && validDate(data.start_date)
+        && (data.due_date == null || validDate(data.due_date))
+        && (data.annual_rate_bps == null || validInt32(data.annual_rate_bps))
+        && validNullableText(data.counterparty, 200)
+        && validNullableText(data.note, 2000)
+        && data.status in ['active', 'paid', 'cancelled'];
+    }
+
+    function validRecurringRule(data, uid, recordId) {
+      return exactFields(data, [
+          'id', 'user_id', 'created_at', 'updated_at', 'amount', 'currency_code',
+          'category_id', 'type', 'cadence', 'billing_day', 'next_run_date',
+          'note', 'active', 'money_location'
+        ])
+        && validBase(data, uid, recordId)
+        && validInt32(data.amount) && data.amount > 0
+        && validCurrency(data.currency_code)
+        && validUuid(data.category_id)
+        && referenceExists(uid, 'categories', data.category_id)
+        && data.type in ['income', 'expense']
+        && data.cadence in ['weekly', 'monthly', 'yearly']
+        && data.billing_day is int && data.billing_day >= 1 && data.billing_day <= 31
+        && validDate(data.next_run_date)
+        && validNullableText(data.note, 2000)
+        && data.active is int && data.active in [0, 1]
+        && data.money_location in ['cash', 'card'];
+    }
+
+    function validBudget(data, uid, recordId) {
+      return exactFields(data, [
+          'id', 'user_id', 'created_at', 'updated_at', 'category_id',
+          'limit_cents', 'currency_code'
+        ])
+        && validBase(data, uid, recordId)
+        && validUuid(data.category_id)
+        && referenceExists(uid, 'categories', data.category_id)
+        && validInt32(data.limit_cents) && data.limit_cents > 0
+        && validCurrency(data.currency_code);
+    }
+
+    function validTransaction(data, uid, recordId) {
+      return exactFields(data, [
+          'id', 'user_id', 'created_at', 'updated_at', 'amount', 'currency_code',
+          'date', 'type', 'category_id', 'note', 'recurring_id', 'goal_id',
+          'credit_debt_id', 'money_location'
+        ])
+        && validBase(data, uid, recordId)
+        && validInt32(data.amount) && data.amount > 0
+        && validCurrency(data.currency_code)
+        && validDate(data.date)
+        && data.type in ['income', 'expense']
+        && validUuid(data.category_id)
+        && referenceExists(uid, 'categories', data.category_id)
+        && validNullableText(data.note, 2000)
+        && (data.recurring_id == null || validUuid(data.recurring_id))
+        && (data.recurring_id == null || referenceExists(uid, 'recurring_rules', data.recurring_id))
+        && (data.goal_id == null || validUuid(data.goal_id))
+        && (data.goal_id == null || referenceExists(uid, 'goals', data.goal_id))
+        && (data.credit_debt_id == null || validUuid(data.credit_debt_id))
+        && (data.credit_debt_id == null || referenceExists(uid, 'credit_debts', data.credit_debt_id))
+        && !(data.goal_id != null && data.credit_debt_id != null)
+        && data.money_location in ['cash', 'card'];
+    }
+
+    function validFinance(collection, data, uid, recordId) {
+      return (collection == 'currencies' && validCurrencyDoc(data, uid, recordId))
+        || (collection == 'categories' && validCategory(data, uid, recordId))
+        || (collection == 'settings' && validSettings(data, uid, recordId))
+        || (collection == 'goals' && validGoal(data, uid, recordId))
+        || (collection == 'deposits' && validDeposit(data, uid, recordId))
+        || (collection == 'credit_debts' && validCreditDebt(data, uid, recordId))
+        || (collection == 'recurring_rules' && validRecurringRule(data, uid, recordId))
+        || (collection == 'budgets' && validBudget(data, uid, recordId))
+        || (collection == 'transactions' && validTransaction(data, uid, recordId));
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && validUser(request.resource.data, uid);
+      allow update: if isOwner(uid)
+        && validUser(request.resource.data, uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.created_at == resource.data.created_at
+        && request.resource.data.legacy_username == resource.data.legacy_username
+        && request.resource.data.migration_source == resource.data.migration_source
+        && validConsentTransition();
+      allow delete: if false;
+
+      match /{collection}/{recordId} {
+        allow read: if isOwner(uid) && accountExists(uid);
+        allow create: if isOwner(uid)
+          && accountExistsAfter(uid)
+          && validFinance(collection, request.resource.data, uid, recordId);
+        allow update: if isOwner(uid)
+          && accountExistsAfter(uid)
+          && immutableBase()
+          && validFinance(collection, request.resource.data, uid, recordId);
+        allow delete: if isOwner(uid)
+          && accountExistsAfter(uid)
+          && collection in [
+            'currencies', 'categories', 'settings', 'goals', 'deposits',
+            'credit_debts', 'recurring_rules', 'budgets', 'transactions'
+          ];
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

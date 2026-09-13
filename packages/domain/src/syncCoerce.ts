@@ -12,7 +12,7 @@ const INT_FIELDS: Record<string, string[]> = {
 };
 
 /**
- * Normalize a PowerSync CRUD payload for Supabase upsert/update.
+ * Normalize a local SQLite CRUD payload before a Firestore write.
  * Only mutates keys that are already present — never invents nulls for
  * omitted columns (partial PATCH ops must stay partial).
  */

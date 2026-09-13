@@ -1,0 +1,27 @@
+{
+  "name": "f1nancer-firebase-migration",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "source-check": "node with-supabase-temp-access.mjs --source-only",
+    "source-write-status": "node source-write-mode.mjs --check",
+    "freeze-source-writes": "node source-write-mode.mjs --freeze --confirm-project=xtqudnqthpakdaonrwir",
+    "restore-source-writes": "node source-write-mode.mjs --unfreeze --confirm-project=xtqudnqthpakdaonrwir",
+    "backup": "node backup.mjs",
+    "dry-run:linked": "node with-supabase-temp-access.mjs --dry-run",
+    "dry-run": "node migrate.mjs --dry-run",
+    "apply": "node with-supabase-temp-access.mjs --apply --confirm-project=f1nancer",
+    "verify": "node with-supabase-temp-access.mjs --verify",
+    "apply:env": "node migrate.mjs --apply --confirm-project=f1nancer",
+    "verify:env": "node migrate.mjs --verify",
+    "rehearse": "node migrate.mjs --rehearsal"
+  },
+  "dependencies": {
+    "dotenv": "17.2.3",
+    "firebase-admin": "14.4.0",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "bcryptjs": "3.0.2"
+  }
+}

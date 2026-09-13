@@ -3,7 +3,7 @@ import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { randomUUID } from "expo-crypto";
 import { openOwnedDatabase, createSerialQueue } from "@f1nancer/domain";
-import { supabaseUrl } from "./config";
+import { firebaseProjectUrl, legacyCloudProjectUrls } from "./config";
 let active: AbstractPowerSyncDatabase | null = null;
 export const serializeSync = createSerialQueue();
 export const isTemporaryStorage = Constants.executionEnvironment === "storeClient";
@@ -16,7 +16,7 @@ export async function openAccountDatabase(userId: string) {
   const factory = isTemporaryStorage
     ? (require("./databaseSqlJs") as typeof import("./databaseSqlJs")).createSqlJsPowerSync
     : (require("./databaseNative") as typeof import("./databaseNative")).createNativePowerSync;
-  const result = await openOwnedDatabase(userId, supabaseUrl, factory, AsyncStorage, randomUUID);
+  const result = await openOwnedDatabase(userId, firebaseProjectUrl, factory, AsyncStorage, randomUUID, legacyCloudProjectUrls);
   active = result.db;
   return result;
 }

@@ -15,3 +15,5 @@ export * from "./accountDatabase";
 export * from "./backupRecovery";
 export * from "./cachedSession";
 export * from "./uploadRecovery";
+export * from "./firestoreSync";
+export * from "./firebaseSeed";

@@ -1,7 +1,7 @@
 import { PowerSyncDatabase } from "@powersync/web";
 import { openOwnedDatabase, createSerialQueue } from "@f1nancer/domain";
 import { AppSchema } from "./schema";
-import { supabaseUrl } from "./config";
+import { firebaseProjectUrl, legacyCloudProjectUrls } from "./config";
 let active: PowerSyncDatabase | null = null;
 export const serializeSync = createSerialQueue();
 export function getPowerSync(): PowerSyncDatabase {
@@ -10,9 +10,9 @@ export function getPowerSync(): PowerSyncDatabase {
 }
 export async function openAccountDatabase(userId: string) {
   if (active) { await active.disconnect(); await active.close(); active = null; }
-  const result = await openOwnedDatabase(userId, supabaseUrl, filename => new PowerSyncDatabase({
+  const result = await openOwnedDatabase(userId, firebaseProjectUrl, filename => new PowerSyncDatabase({
     schema: AppSchema, database: { dbFilename: filename }, flags: { enableMultiTabs: false },
-  }), { getItem: async key => localStorage.getItem(key), setItem: async (key, value) => localStorage.setItem(key, value) }, () => crypto.randomUUID());
+  }), { getItem: async key => localStorage.getItem(key), setItem: async (key, value) => localStorage.setItem(key, value) }, () => crypto.randomUUID(), legacyCloudProjectUrls);
   active = result.db;
   return result;
 }

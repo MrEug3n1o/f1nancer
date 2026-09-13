@@ -1,6 +1,7 @@
 import {
   asBool,
   asInt,
+  advanceRunDate,
   byCurrency,
   creditsDebtsSummary,
   DEFAULT_DASHBOARD_WIDGETS,
@@ -31,11 +32,12 @@ import {
   type Transaction,
 } from "@f1nancer/domain";
 import type { AbstractPowerSyncDatabase } from "@powersync/web";
+import { v5 as uuidv5 } from "uuid";
 import { ISO_CURRENCY_CATALOG } from "../currencyCatalog";
 import { DEFAULT_WIDGET_LAYOUT } from "../types";
-import { getSupabase } from "../sync/supabaseClient";
 
 type Row = Record<string, unknown>;
+const RECURRING_TRANSACTION_NAMESPACE = '90c8f2e0-51c5-5ce2-9a4e-17e0cb7c2dd9';
 
 let db: AbstractPowerSyncDatabase | null = null;
 let userId: string | null = null;
@@ -356,6 +358,7 @@ async function syncCreditStatus(id: string | null | undefined) {
 }
 
 async function insertTransaction(payload: {
+  id?: string;
   amount: number;
   currency_code: string;
   date: string;
@@ -375,10 +378,10 @@ async function insertTransaction(payload: {
   if (payload.goal_id && payload.credit_debt_id) {
     throw new Error("A transaction cannot be tagged to both a goal and a credit or debt");
   }
-  const id = newId();
+  const id = payload.id ?? newId();
   const ts = nowIso();
   await exec(
-    `INSERT INTO transactions (
+    `${payload.id ? 'INSERT OR IGNORE' : 'INSERT'} INTO transactions (
       id, user_id, amount, currency_code, date, type, category_id, note,
       recurring_id, goal_id, credit_debt_id, money_location, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -807,11 +810,24 @@ export async function handlePost(path: string, body: unknown): Promise<unknown> 
     return rules.find((r) => r.id === id);
   }
   if (p === "/recurring/process") {
-    const { error, data } = await getSupabase().rpc("process_due_recurring_rules");
-    if (error) {
-      return { created: 0, offline: true };
+    const rules = await handleGet('/recurring') as RecurringRule[];
+    const today = todayISO();
+    let created = 0;
+    for (const rule of rules.filter(item => item.active && item.next_run_date <= today)) {
+      let next = rule.next_run_date;
+      while (next <= today) {
+        await insertTransaction({
+          id: uuidv5(`${rule.id}:${next}`, RECURRING_TRANSACTION_NAMESPACE),
+          amount: rule.amount, currency_code: rule.currency_code, date: next,
+          type: rule.type, category_id: rule.category_id, note: rule.note,
+          recurring_id: rule.id, money_location: rule.money_location,
+        });
+        next = advanceRunDate(next, rule.cadence, rule.billing_day);
+        created++;
+      }
+      await exec('UPDATE recurring_rules SET next_run_date = ?, updated_at = ? WHERE id = ? AND user_id = ?', [next, nowIso(), rule.id, uid]);
     }
-    return { created: data ?? 0 };
+    return { created };
   }
   throw new Error(`Unknown POST ${p}`);
 }

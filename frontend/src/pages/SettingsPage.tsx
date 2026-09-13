@@ -33,7 +33,7 @@ export function SettingsPage() {
     refreshSettings,
     refreshCurrencies,
   } = useApp();
-  const { username, signOut, dataRevision } = useAuth();
+  const { email, marketingEmailConsent, setMarketingEmailConsent, signOut, dataRevision } = useAuth();
 
   const [theme, setTheme] = useState<ThemeMode>("system");
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
@@ -45,6 +45,7 @@ export function SettingsPage() {
   const [catColor, setCatColor] = useState("#5B8C5A");
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savingEmailConsent, setSavingEmailConsent] = useState(false);
   const currencySearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -217,7 +218,7 @@ export function SettingsPage() {
           <div>
             <h2>Account</h2>
             <p className="muted account-meta">
-              Signed in as <strong>{username ?? "unknown"}</strong>
+              Signed in as <strong>{email ?? "unknown"}</strong>
             </p>
           </div>
           <button
@@ -237,8 +238,27 @@ export function SettingsPage() {
           </button>
         </div>
         <p className="muted small account-hint">
-          Same username works on desktop and mobile. Signing out keeps this device’s local data. Last write wins for ordinary edits made offline.
+          The same email works on desktop and mobile. Signing out keeps this device’s local data. Newer edits win when devices reconnect.
         </p>
+        <label className="email-consent-row">
+          <input
+            type="checkbox"
+            checked={marketingEmailConsent}
+            disabled={savingEmailConsent}
+            onChange={(event) => {
+              const consent = event.target.checked;
+              setSavingEmailConsent(true);
+              setError(null);
+              void setMarketingEmailConsent(consent)
+                .catch(reason => setError(reason instanceof Error ? reason.message : "Could not update email preference"))
+                .finally(() => setSavingEmailConsent(false));
+            }}
+          />
+          <span>
+            Receive occasional F1nancer product updates by email.
+            <small>You can opt out here at any time.</small>
+          </span>
+        </label>
       </section>
 
       <section className="section settings-theme-bar">

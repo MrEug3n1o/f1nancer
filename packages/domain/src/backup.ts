@@ -10,6 +10,7 @@ export interface FinanceBackup {
 }
 export interface ImportItem { key: string; table: FinanceTable; row: BackupRow; existing?: BackupRow; kind: 'add' | 'same' | 'conflict' }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const firebaseUidPattern = /^[A-Za-z0-9_-]{1,128}$/;
 const base = ['id', 'user_id', 'created_at', 'updated_at'];
 export const BACKUP_COLUMNS: Record<FinanceTable, string[]> = {
   currencies: [...base, 'code', 'name'], categories: [...base, 'name', 'type', 'color'],
@@ -36,7 +37,7 @@ export function validateBackup(raw: unknown, accountId: string, project: string)
   const b = raw as FinanceBackup;
   if (!b || b.format !== 'f1nancer-backup' || b.version !== 1) throw new Error('Unsupported backup format or version.');
   if (b.accountId !== accountId || b.project !== projectIdentity(project)) throw new Error('This backup belongs to a different account or cloud project.');
-  if (!uuidPattern.test(accountId) || !b.tables || !b.sync || typeof b.sync.hasSynced !== 'boolean' || !Number.isSafeInteger(b.sync.pendingUploads) || b.sync.pendingUploads < 0 || !Number.isFinite(Date.parse(b.exportedAt))) throw new Error('Invalid backup metadata.');
+  if (!firebaseUidPattern.test(accountId) || !b.tables || !b.sync || typeof b.sync.hasSynced !== 'boolean' || !Number.isSafeInteger(b.sync.pendingUploads) || b.sync.pendingUploads < 0 || !Number.isFinite(Date.parse(b.exportedAt))) throw new Error('Invalid backup metadata.');
   for (const table of FINANCE_TABLES) {
     const rows = b.tables[table];
     if (!Array.isArray(rows)) throw new Error(`Missing backup table: ${table}`);
@@ -52,7 +53,9 @@ export function validateBackup(raw: unknown, accountId: string, project: string)
         if (numeric.has(col)) {
           if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < -2147483648 || v > 2147483647) throw new Error(`Invalid number: ${table}.${col}`);
         } else if (typeof v !== 'string') throw new Error(`Invalid value: ${table}.${col}`);
-        if (col.endsWith('_id') && v !== null && !uuidPattern.test(String(v))) throw new Error(`Invalid reference: ${table}.${col}`);
+        // Account ownership accepts both legacy UUIDs and Firebase UIDs. Record
+        // references remain UUIDs because existing finance row IDs are preserved.
+        if (col !== 'user_id' && col.endsWith('_id') && v !== null && !uuidPattern.test(String(v))) throw new Error(`Invalid reference: ${table}.${col}`);
         if ((col.endsWith('_date') || col === 'date' || col === 'deadline') && (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v) || !Number.isFinite(Date.parse(v)) || new Date(v).toISOString().slice(0, 10) !== v)) throw new Error(`Invalid date: ${table}.${col}`);
         if (col.endsWith('_at') && !Number.isFinite(Date.parse(String(v)))) throw new Error(`Invalid timestamp: ${table}.${col}`);
         if ((col === 'code' || col.endsWith('currency_code')) && !/^[A-Z]{3}$/.test(String(v))) throw new Error(`Invalid currency in ${table}.`);

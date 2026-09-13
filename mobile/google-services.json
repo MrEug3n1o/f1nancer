@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "8398277156",
+    "project_id": "f1nancer",
+    "storage_bucket": "f1nancer.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:8398277156:android:3d1a5fcff1e5c96fc066b1",
+        "android_client_info": {
+          "package_name": "app.f1nancer.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXjdos4I_OsEaCUxQAVqrm39gnsH1Uj3Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

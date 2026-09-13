@@ -56,13 +56,10 @@ export function isUniqueConstraintError(err: unknown): boolean {
 
 export function formatSyncError(err: unknown): string {
   const msg = extractSyncErrorText(err);
-  if (
-    msg.includes("PSYNC_S2105") ||
-    msg.includes('Unexpected "aud" claim') ||
-    msg.includes("Unexpected 'aud' claim")
-  ) {
-    return 'Cloud sync rejected this login token. In the PowerSync Dashboard open Client Auth, add JWT Audience “authenticated” (and enable Use Supabase Auth if needed), then Save and Deploy.';
-  }
+  if (msg.includes('permission-denied') || msg.includes('Missing or insufficient permissions'))
+    return 'Firestore denied this sync operation. Your local changes are retained; sign in again, then retry. If it continues, review the deployed owner rules.';
+  if (msg.includes('unauthenticated'))
+    return 'Firebase authentication expired. Your local changes are retained; sign in again to resume sync.';
   if (isUniqueConstraintError(err)) {
     return "Cloud sync found conflicting duplicate data. Your local changes are retained. Export a backup, correct the conflicting record, then retry.";
   }

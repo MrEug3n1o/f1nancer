@@ -6,7 +6,7 @@ import { useAuth } from "../sync/AuthProvider";
 export function AuthPage() {
   const { signIn, signUp, configured } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [username, setUsername] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -16,8 +16,8 @@ export function AuthPage() {
     setError(null);
     setBusy(true);
     try {
-      if (mode === "signup") await signUp(username, password);
-      else await signIn(username, password);
+      if (mode === "signup") await signUp(identifier, password);
+      else await signIn(identifier, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in");
     } finally {
@@ -30,19 +30,19 @@ export function AuthPage() {
       <div className="auth-card">
         <h1>{mode === "signup" ? "Create account" : "Sign in"}</h1>
         {!configured || !isSyncConfigured() ? (
-          <ErrorBanner message="Set VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, and VITE_POWERSYNC_URL to enable sync." />
+          <ErrorBanner message="Firebase configuration is incomplete." />
         ) : null}
         <ErrorBanner message={error} />
         <form className="stack" onSubmit={onSubmit}>
           <label>
-            Username
+            {mode === "signup" ? "Email" : "Email or old username"}
             <input
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type={mode === "signup" ? "email" : "text"}
+              autoComplete={mode === "signup" ? "email" : "username"}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
-              minLength={3}
-              maxLength={32}
+              maxLength={254}
               spellCheck={false}
             />
           </label>
@@ -61,6 +61,7 @@ export function AuthPage() {
             {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
           </button>
         </form>
+        {mode === "signin" ? <p className="muted small">Existing account? Your old username and password still work once, then we’ll help you add a real email.</p> : <p className="muted small">We’ll send a verification link. Product or marketing email still requires separate consent.</p>}
         <p className="muted small">
           {mode === "signup" ? "Already have an account?" : "New here?"}{" "}
           <button

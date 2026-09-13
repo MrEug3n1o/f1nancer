@@ -8,12 +8,12 @@ export function createAppSchema(ps: {
     integer: unknown;
     real: unknown;
   };
-  Table: new (columns: Record<string, unknown>, options?: { indexes?: Record<string, string[]>; trackMetadata?: boolean }) => unknown;
+  Table: new (columns: Record<string, unknown>, options?: { indexes?: Record<string, string[]>; trackMetadata?: boolean; trackPrevious?: boolean }) => unknown;
   Schema: new (tables: any) => unknown;
 }): unknown {
   const { column, Schema } = ps;
   const table = (columns: Record<string, unknown>, options: { indexes?: Record<string, string[]> } = {}) =>
-    new ps.Table(columns, { ...options, trackMetadata: true });
+    new ps.Table(columns, { ...options, trackMetadata: true, trackPrevious: true });
   const text = column.text;
   const integer = column.integer;
 

@@ -1,5 +1,5 @@
 import { BACKUP_COLUMNS, FINANCE_TABLES, validateBackup, type BackupRow, type FinanceBackup, type LocalExportPayload } from '@f1nancer/domain';
-import { supabaseUrl } from '../sync/config';
+import { firebaseProjectUrl } from '../sync/config';
 export async function fetchLocalExport(): Promise<LocalExportPayload | null> {
   try { const res = await fetch('/api/local-export'); return res.ok ? await res.json() : null; } catch { return null; }
 }
@@ -35,6 +35,6 @@ export async function prepareLegacyBackup(userId: string): Promise<FinanceBackup
       tables[table].push(Object.fromEntries(BACKUP_COLUMNS[table].map(col => [col, row[col] ?? null])) as BackupRow);
     }
   }
-  return validateBackup({ format: 'f1nancer-backup', version: 1, accountId: userId, project: new URL(supabaseUrl).origin,
-    exportedAt: new Date().toISOString(), sync: { hasSynced: false, pendingUploads: 0 }, tables }, userId, supabaseUrl);
+  return validateBackup({ format: 'f1nancer-backup', version: 1, accountId: userId, project: new URL(firebaseProjectUrl).origin,
+    exportedAt: new Date().toISOString(), sync: { hasSynced: false, pendingUploads: 0 }, tables }, userId, firebaseProjectUrl);
 }

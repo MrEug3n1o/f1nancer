@@ -31,14 +31,7 @@ set -a
 source "$ENV_FILE"
 set +a
 
-: "${EXPO_PUBLIC_SUPABASE_URL:?Set EXPO_PUBLIC_SUPABASE_URL in mobile/.env}"
-: "${EXPO_PUBLIC_SUPABASE_ANON_KEY:?Set EXPO_PUBLIC_SUPABASE_ANON_KEY in mobile/.env}"
-: "${EXPO_PUBLIC_POWERSYNC_URL:?Set EXPO_PUBLIC_POWERSYNC_URL in mobile/.env}"
-
-echo "Setting GitHub Actions secrets from mobile/.env…"
-gh secret set EXPO_PUBLIC_SUPABASE_URL --body "$EXPO_PUBLIC_SUPABASE_URL"
-gh secret set EXPO_PUBLIC_SUPABASE_ANON_KEY --body "$EXPO_PUBLIC_SUPABASE_ANON_KEY"
-gh secret set EXPO_PUBLIC_POWERSYNC_URL --body "$EXPO_PUBLIC_POWERSYNC_URL"
+echo "Firebase public client configuration is committed; no database secret is bundled."
 
 if [[ -n "${EXPO_TOKEN:-}" ]]; then
   gh secret set EXPO_TOKEN --body "$EXPO_TOKEN"
@@ -65,4 +58,4 @@ echo "When EXPO_TOKEN + EAS_PROJECT_ID secrets exist, create the Android keystor
 echo "  cd mobile && npx eas-cli build -p android --profile apk"
 echo "Then run the release:"
 echo "  gh workflow run desktop-release.yml --ref main"
-echo "Done with GitHub push + Supabase/PowerSync secrets."
+echo "Done with GitHub push + Expo release secrets."

@@ -77,6 +77,15 @@ test('invalid backup, ownership, references, dates, versions and duplicate uniqu
     const b = fixture(); change(b); assert.throws(() => validateBackup(b, USER, PROJECT));
   }
 });
+test('Firebase UIDs are valid account owners while finance references remain UUIDs', () => {
+  const firebaseUid = 'firebase_User-123';
+  const backup = fixture();
+  backup.accountId = firebaseUid;
+  for (const table of FINANCE_TABLES) for (const row of backup.tables[table]) row.user_id = firebaseUid;
+  assert.equal(validateBackup(backup, firebaseUid, PROJECT).accountId, firebaseUid);
+  backup.tables.transactions[0].category_id = firebaseUid;
+  assert.throws(() => validateBackup(backup, firebaseUid, PROJECT), /Invalid reference/);
+});
 test('import is atomic and stale previews cannot overwrite concurrent edits', async () => {
   const { db, sql } = sqlite(); await initializeSyncStorage(db, randomUUID); const b = fixture(); const before = await exportBackup(db, USER, PROJECT, b.sync);
   sql.exec("CREATE TRIGGER reject_txn BEFORE INSERT ON transactions BEGIN SELECT RAISE(ABORT, 'test failure'); END");
@@ -108,6 +117,12 @@ test('account databases isolate users and preserve the legacy file and persisten
   assert.notEqual(a.db, b.db); assert.equal((await b.db.getAll('SELECT * FROM categories')).length, 0);
   const again = await openOwnedDatabase(USER, PROJECT, factory, storage, randomUUID);
   assert.equal(a.instanceId, again.instanceId); assert.equal((await again.db.getAll('SELECT * FROM categories')).length, 1);
+  const firebaseProject = 'https://f1nancer.firebaseapp.com';
+  const migrated = await openOwnedDatabase(USER, firebaseProject, factory, storage, randomUUID, [PROJECT]);
+  assert.equal(migrated.db, a.db);
+  assert.equal((await migrated.db.getAll('SELECT * FROM categories')).length, 1);
+  assert.equal(values.get(`f1nancer.database.f1nancer.firebaseapp.com.${USER}`), 'f1nancer.sqlite');
+  assert.equal((await migrated.db.getAll<{ value: string }>("SELECT value FROM f1_sync_meta WHERE key='project'"))[0].value, 'f1nancer.firebaseapp.com');
 });
 test('auth transition queue serializes connect/disconnect and recovers after errors', async () => {
   const queue = createSerialQueue(); const events: string[] = []; let release!: () => void;

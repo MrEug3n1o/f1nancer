@@ -9,6 +9,7 @@ export interface UploadOperation {
   id: string;
   op: string;
   opData?: Record<string, unknown> | null;
+  previousValues?: Record<string, unknown> | null;
   metadata?: string;
 }
 export interface UploadDatabase extends SqlWriter {

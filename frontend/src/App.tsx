@@ -2,6 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { AppProvider } from "./context";
 import { AuthPage } from "./pages/AuthPage";
+import { EmailMigrationPage } from "./pages/EmailMigrationPage";
+import { EmailVerificationPage } from "./pages/EmailVerificationPage";
 import { BudgetsPage } from "./pages/BudgetsPage";
 import { BankPage } from "./pages/BankPage";
 import { CreditsDebtsPage } from "./pages/CreditsDebtsPage";
@@ -37,13 +39,19 @@ function SignedInApp() {
 }
 
 function Gate() {
-  const { session, loading, dbReady, dbError } = useAuth();
-  if (loading || (session && !dbReady && !dbError)) {
+  const { session, loading, dbReady, dbError, requiresEmailMigration, requiresEmailVerification } = useAuth();
+  if (loading) {
     return (
       <div className="auth-shell">
         <p className="muted">Loading…</p>
       </div>
     );
+  }
+  if (!session) return <AuthPage />;
+  if (requiresEmailMigration) return <EmailMigrationPage />;
+  if (requiresEmailVerification) return <EmailVerificationPage />;
+  if (!dbReady && !dbError) {
+    return <div className="auth-shell"><p className="muted">Loading…</p></div>;
   }
   if (session && dbError) {
     return (
@@ -55,7 +63,6 @@ function Gate() {
       </div>
     );
   }
-  if (!session) return <AuthPage />;
   return <SignedInApp key={session.user.id} />;
 }
 

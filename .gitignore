@@ -14,6 +14,9 @@ desktop/installed_revision.txt
 .env
 .env.local
 *.log
+.env.firebase-migration
+tools/firebase-migration/.env
+tools/firebase-migration/*.report.json
 mobile/.expo/
 mobile/dist/
 supabase/.temp/

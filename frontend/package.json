@@ -17,12 +17,13 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@journeyapps/wa-sqlite": "^1.4.0",
     "@powersync/web": "^1.27.1",
-    "@supabase/supabase-js": "^2.57.4",
+    "firebase": "12.19.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",
     "recharts": "^3.10.1",
-    "rollup": "^4.63.1"
+    "rollup": "^4.63.1",
+    "uuid": "11.1.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",

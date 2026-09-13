@@ -15,7 +15,7 @@ import { colors } from "./theme";
 export function AuthScreen() {
   const { signIn, signUp, configured } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [username, setUsername] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -24,8 +24,8 @@ export function AuthScreen() {
     setError(null);
     setBusy(true);
     try {
-      if (mode === "signup") await signUp(username, password);
-      else await signIn(username, password);
+      if (mode === "signup") await signUp(identifier, password);
+      else await signIn(identifier, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in");
     } finally {
@@ -49,8 +49,7 @@ export function AuthScreen() {
         </Text>
         {!configured || !isSyncConfigured() ? (
           <Text style={styles.error}>
-            Set EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, and
-            EXPO_PUBLIC_POWERSYNC_URL.
+            Firebase configuration is incomplete.
           </Text>
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -58,10 +57,12 @@ export function AuthScreen() {
           style={styles.input}
           autoCapitalize="none"
           autoCorrect={false}
-          placeholder="Username"
-          value={username}
-          onChangeText={setUsername}
+          keyboardType={mode === "signup" ? "email-address" : "default"}
+          placeholder={mode === "signup" ? "Email" : "Email or old username"}
+          value={identifier}
+          onChangeText={setIdentifier}
         />
+        <Text style={styles.muted}>{mode === "signin" ? "Old accounts can sign in once with their username, then add a real email." : "We’ll send a verification link. Marketing email requires separate consent."}</Text>
         <TextInput
           style={styles.input}
           secureTextEntry
