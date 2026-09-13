@@ -81,13 +81,17 @@ try {
     await client.query(`REVOKE INSERT, UPDATE, DELETE ON TABLE ${TABLES.map(table => `public.${table}`).join(', ')} FROM authenticated`);
     await client.query('REVOKE EXECUTE ON FUNCTION public.apply_sync_batch(uuid, jsonb) FROM authenticated');
     await client.query('REVOKE EXECUTE ON FUNCTION f1_sync_private.apply_sync_batch(uuid, jsonb) FROM authenticated');
-    await client.query('REVOKE EXECUTE ON FUNCTION public.process_due_recurring_rules() FROM authenticated');
+    // PostgreSQL grants EXECUTE on new functions to PUBLIC by default. Revoking
+    // only from `authenticated` is ineffective while that inherited grant
+    // remains, so pause both grant paths during cutover.
+    await client.query('REVOKE EXECUTE ON FUNCTION public.process_due_recurring_rules() FROM authenticated, PUBLIC');
     await setRecurringJobActive(false);
   } else if (mode === 'unfreeze') {
     await client.query(`GRANT INSERT, UPDATE, DELETE ON TABLE ${TABLES.map(table => `public.${table}`).join(', ')} TO authenticated`);
     await client.query('GRANT EXECUTE ON FUNCTION public.apply_sync_batch(uuid, jsonb) TO authenticated');
     await client.query('GRANT EXECUTE ON FUNCTION f1_sync_private.apply_sync_batch(uuid, jsonb) TO authenticated');
-    await client.query('GRANT EXECUTE ON FUNCTION public.process_due_recurring_rules() TO authenticated');
+    // Restore the pre-cutover PUBLIC grant exactly; `authenticated` inherits it.
+    await client.query('GRANT EXECUTE ON FUNCTION public.process_due_recurring_rules() TO PUBLIC');
     await setRecurringJobActive(true);
   }
   const status = await readStatus();
