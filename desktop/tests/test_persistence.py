@@ -4,6 +4,7 @@ import socket
 import sqlite3
 import tempfile
 import unittest
+from urllib.parse import urlsplit
 from pathlib import Path
 from contextlib import closing
 from unittest.mock import patch
@@ -42,6 +43,15 @@ class PersistenceTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'preserved'):
                     module._free_port()
             self.assertEqual(port, module._free_port())
+
+    def test_release_url_busts_document_cache_without_changing_storage_origin(self):
+        previous = urlsplit(module._app_url('127.0.0.1', 65374, '0.1.23'))
+        current = urlsplit(module._app_url('127.0.0.1', 65374, '0.1.24'))
+        self.assertNotEqual(previous.geturl(), current.geturl())
+        self.assertEqual((previous.scheme, previous.hostname, previous.port),
+                         (current.scheme, current.hostname, current.port))
+        self.assertEqual(previous.query, 'v=0.1.23')
+        self.assertEqual(current.query, 'v=0.1.24')
 
     def test_dialog_export_and_import_and_cancellation(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -76,13 +76,23 @@ def api_health():
 STATIC_DIR = _static_dir()
 if STATIC_DIR is not None:
 
+    _INDEX_HEADERS = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+    }
+
     @app.get("/")
     def spa_index():
-        return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(STATIC_DIR / "index.html", headers=_INDEX_HEADERS)
 
     @app.get("/{full_path:path}")
     def spa_fallback(full_path: str):
         candidate = STATIC_DIR / full_path
         if full_path and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(STATIC_DIR / "index.html")
+        # A stale cached bundle may request a hashed asset from the previous
+        # release. Returning index.html as JavaScript hides the real 404 and
+        # produces a misleading MIME-type crash in WebView.
+        if Path(full_path).suffix:
+            raise HTTPException(status_code=404, detail="Static asset not found")
+        return FileResponse(STATIC_DIR / "index.html", headers=_INDEX_HEADERS)

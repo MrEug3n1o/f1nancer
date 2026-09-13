@@ -344,6 +344,11 @@ def _free_port() -> int:
         return port
 
 
+def _app_url(host: str, port: int, version: str) -> str:
+    """Keep the storage origin stable while invalidating the cached document."""
+    return f"http://{host}:{port}/?v={version}"
+
+
 def _wait_for_server(
     url: str,
     *,
@@ -397,7 +402,10 @@ def main() -> None:
     except (OSError, ValueError, RuntimeError) as exc:
         _fatal("F1nancer could not open its saved address", str(exc))
     host = "127.0.0.1"
-    url = f"http://{host}:{port}"
+    # The port intentionally stays stable so IndexedDB/OPFS data survives app
+    # upgrades. Version only the document URL so WebView cannot reuse an old
+    # index/module graph whose hashed lazy chunks are absent from a new bundle.
+    url = _app_url(host, port, fastapi_app.version)
 
     config = uvicorn.Config(
         fastapi_app,
