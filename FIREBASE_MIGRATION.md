@@ -42,6 +42,41 @@ The Android client configuration is committed as
 they are not administrator secrets. Database access must still be restricted by
 Firestore Security Rules.
 
+## Production cutover record — 2026-09-13
+
+- Supabase authenticated writes were frozen across all ten source tables, both
+  sync RPCs, the recurring-rule RPC, and the recurring cron job. Supabase reads
+  remain available for reconciliation and rollback.
+- The post-freeze custom-format backup
+  `f1nancer-cutover-2026-09-13-120007.dump` is retained locally with `0600`
+  permissions. It is 140,261 bytes, contains all 11 required Auth/public table
+  data entries, and has SHA-256
+  `e5e048a13accedfc3f30a3957b3d4ad43168ff3a579a73f7112c95a4d2ab31d0`.
+- The production apply imported all 3 Auth users with their original UIDs,
+  verification/disabled states, and Supabase bcrypt hashes, then wrote 88
+  account and finance documents. The independent verifier reported zero Auth,
+  profile, document-set, count, row, per-user, ownership, relationship, or
+  migration-state mismatches. Source checksum:
+  `1f6f65d71491bf6c17d2130d64d41b302aea94c3aa7e0041e6cf711eb70b61ab`.
+- A temporary production `$2a$` bcrypt import successfully signed in with its
+  original password, proving the same hash format used by Supabase works in
+  Firebase Auth. All temporary Auth and Firestore records were removed.
+- Release [`v0.1.24`](https://github.com/MrEug3n1o/f1nancer/releases/tag/v0.1.24)
+  was built from commit `87a37913610cadfcd13cb3a78bb9bdc87b20c681` for
+  macOS, Windows, and Android. The first `v0.1.23` package exposed a persisted
+  WebView document-cache issue during acceptance and was superseded by
+  `v0.1.24`, which versions the document URL without changing the IndexedDB/
+  OPFS origin and serves HTML with `no-store` headers.
+- The downloaded public `v0.1.24` artifacts matched GitHub's recorded SHA-256
+  digests; APK ZIP integrity and DMG filesystem integrity passed. The exact
+  published macOS app passed verified Firebase sign-in, account seeding,
+  Settings lazy-module loading, and zero-error browser checks. The installed
+  Mac app is now `0.1.24`; its `0.1.22` bundle is retained as a rollback copy.
+- The signed Android APK built successfully, but physical/emulator installation
+  acceptance still requires an available Android device. Do not cancel the old
+  services or remove their release secrets until that check and an observation
+  window have passed.
+
 ## Non-negotiable migration invariants
 
 1. Preserve each existing Supabase `auth.users.id` as the Firebase Auth UID.
