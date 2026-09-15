@@ -12,6 +12,7 @@ import {
   goalProgressPct,
   goalSavedCents,
   goalsProgress,
+  incomeByCategory,
   monthOverview,
   moneyLocationOverview,
   openingTxnType,
@@ -518,6 +519,11 @@ export async function handleGet(path: string): Promise<unknown> {
     const month = q.get("month") || todayISO().slice(0, 7);
     const [txns, cats] = await Promise.all([transactionsAll(), categoriesAll()]);
     return spendByCategory(txns, cats, month, q.get("currency") ?? undefined);
+  }
+  if (p === "/analytics/income-by-category") {
+    const month = q.get("month") || todayISO().slice(0, 7);
+    const [txns, cats] = await Promise.all([transactionsAll(), categoriesAll()]);
+    return incomeByCategory(txns, cats, month, q.get("currency") ?? undefined);
   }
   if (p === "/analytics/goals-progress") {
     const [goals, txns] = await Promise.all([goalsAll(), transactionsAll()]);

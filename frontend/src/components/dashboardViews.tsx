@@ -366,6 +366,91 @@ export function SpendCategoryView({
   );
 }
 
+export function IncomeCategoryView({
+  view,
+  data,
+  spendCurrency,
+  locale,
+  resolvedTheme,
+}: {
+  view: string;
+  data: CategorySpend[];
+  spendCurrency: string;
+  locale: string;
+  resolvedTheme: "light" | "dark";
+}) {
+  const rows = spendRows(data, spendCurrency, resolvedTheme);
+  const currency = rows[0]?.currency_code ?? "USD";
+
+  if (view === "bar") {
+    return (
+      <HorizontalBarChart
+        data={rows}
+        locale={locale}
+        currency={currency}
+      />
+    );
+  }
+
+  if (view === "bar_vertical") {
+    return (
+      <VerticalBarChart
+        data={rows}
+        locale={locale}
+        currency={currency}
+      />
+    );
+  }
+
+  if (view === "radial") {
+    return <RadialChart data={rows} />;
+  }
+
+  if (view === "treemap") {
+    return <ColoredTreemap data={rows} />;
+  }
+
+  if (view === "area" || view === "line") {
+    return (
+      <LineAreaChart
+        mode={view}
+        data={rows.map((r) => ({ name: r.name, value: r.value }))}
+        keys={[{ key: "value", fill: "var(--income)", name: "Income" }]}
+        currency={currency}
+        locale={locale}
+      />
+    );
+  }
+
+  if (view === "pie" || view === "donut") {
+    return (
+      <>
+        <ColoredPie
+          data={rows}
+          innerRadius={view === "donut" ? 58 : 0}
+          locale={locale}
+        />
+        <SpendLegend
+          data={data}
+          spendCurrency={spendCurrency}
+          resolvedTheme={resolvedTheme}
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <ColoredPie data={rows} innerRadius={58} locale={locale} />
+      <SpendLegend
+        data={data}
+        spendCurrency={spendCurrency}
+        resolvedTheme={resolvedTheme}
+      />
+    </>
+  );
+}
+
 export function BudgetsView({
   view,
   budgets,

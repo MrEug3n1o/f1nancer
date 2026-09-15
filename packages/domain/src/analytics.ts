@@ -188,6 +188,35 @@ export function spendByCategory(
   return [...bucket.values()].sort((a, b) => b.total_cents - a.total_cents);
 }
 
+export function incomeByCategory(
+  transactions: Transaction[],
+  categories: Category[],
+  month: string,
+  currency?: string,
+): CategorySpend[] {
+  const catById = new Map(categories.map((c) => [c.id, c]));
+  const bucket = new Map<string, CategorySpend>();
+  for (const t of transactions) {
+    if (t.type !== "income" || !inMonth(t.date, month)) continue;
+    if (currency && t.currency_code !== currency.toUpperCase()) continue;
+    const cat = catById.get(t.category_id);
+    const key = `${t.category_id}|${t.currency_code}`;
+    const existing = bucket.get(key);
+    if (existing) {
+      existing.total_cents += t.amount;
+    } else {
+      bucket.set(key, {
+        category_id: t.category_id,
+        category_name: cat?.name ?? "Unknown",
+        color: cat?.color ?? "#495057",
+        currency_code: t.currency_code,
+        total_cents: t.amount,
+      });
+    }
+  }
+  return [...bucket.values()].sort((a, b) => b.total_cents - a.total_cents);
+}
+
 export function goalsProgress(goals: Goal[], transactions: Transaction[]): GoalProgress[] {
   return goals
     .filter((g) => g.status !== "cancelled")

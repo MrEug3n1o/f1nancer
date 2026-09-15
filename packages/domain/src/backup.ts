@@ -78,9 +78,50 @@ export function validateBackup(raw: unknown, accountId: string, project: string)
   }
   return b;
 }
+type FirestoreValue = { nullValue?: null; stringValue?: string; integerValue?: string; doubleValue?: number; booleanValue?: boolean };
+interface CloudSnapshot {
+  format: 'f1nancer-cloud-snapshot'; version: 1; exportedAt: string; account: { uid: string };
+  collections: Record<string, { fields: Record<string, FirestoreValue> }[]>;
+}
+function firestoreValue(value: FirestoreValue): string | number | null {
+  if (!value || typeof value !== 'object') throw new Error('Invalid value in cloud snapshot.');
+  if ('nullValue' in value) return null;
+  if (typeof value.stringValue === 'string') return value.stringValue;
+  if (typeof value.integerValue === 'string') return Number(value.integerValue);
+  if (typeof value.doubleValue === 'number') return value.doubleValue;
+  if (typeof value.booleanValue === 'boolean') return value.booleanValue ? 1 : 0;
+  throw new Error('Unsupported value type in cloud snapshot.');
+}
+// Migrated cloud rows store calendar dates as the UTC instant of local midnight
+// (2026-09-05T22:00:00.000Z is 6 Sep in UTC+2); round to the nearest UTC day.
+function calendarDate(value: string | number | null): string | number | null {
+  if (typeof value !== 'string' || /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? new Date(ms + 12 * 3_600_000).toISOString().slice(0, 10) : value;
+}
+/** Converts a Firestore REST account snapshot into a backup owned by the signed-in account. */
+export function convertCloudSnapshot(raw: unknown, accountId: string, project: string): FinanceBackup {
+  const s = raw as CloudSnapshot;
+  if (!s || s.format !== 'f1nancer-cloud-snapshot' || s.version !== 1 || !s.collections || typeof s.account?.uid !== 'string') throw new Error('Unsupported cloud snapshot format or version.');
+  const tables = {} as FinanceBackup['tables'];
+  for (const table of FINANCE_TABLES) {
+    const docs = s.collections[table];
+    if (!Array.isArray(docs)) throw new Error(`Missing snapshot collection: ${table}`);
+    tables[table] = docs.map(doc => {
+      const row = Object.fromEntries(BACKUP_COLUMNS[table].map(col => {
+        const value = doc?.fields?.[col] === undefined ? null : firestoreValue(doc.fields[col]);
+        return [col, col.endsWith('_date') || col === 'date' || col === 'deadline' ? calendarDate(value) : value];
+      })) as BackupRow;
+      if (row.user_id !== s.account.uid) throw new Error(`Invalid ownership in snapshot ${table}.`);
+      return { ...row, user_id: accountId };
+    });
+  }
+  return { format: 'f1nancer-backup', version: 1, accountId, project: projectIdentity(project), exportedAt: s.exportedAt, sync: { hasSynced: true, pendingUploads: 0 }, tables };
+}
 export function parseBackup(text: string, userId: string, project: string): FinanceBackup {
   if (text.length > 50 * 1024 * 1024) throw new Error('Backup exceeds the 50 MB limit.');
   let raw; try { raw = JSON.parse(text); } catch { throw new Error('The selected file is not valid JSON.'); }
+  if ((raw as { format?: unknown })?.format === 'f1nancer-cloud-snapshot') raw = convertCloudSnapshot(raw, userId, project);
   return validateBackup(raw, userId, project);
 }
 async function snapshot(reader: SqlReader, userId: string): Promise<FinanceBackup['tables']> {

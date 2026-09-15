@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import {
-  Alert, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView,
+  Alert, Image, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, useColorScheme, View,
 } from "react-native";
 import type { Cadence, CategoryType, CreditDebt, Deposit, MoneyLocation, ThemeMode } from "@f1nancer/domain";
 import { BackupCard } from "./BackupCard";
 import { AppUpdateCard } from "./AppUpdateCard";
+import { IconChevronLeft, IconChevronRight, IconDeposit, IconGear, IconHome, IconList, IconMore, IconRefresh, IconScale, IconTarget, IconTrash, IconWallet, type IconProps } from "./NavIcons";
 import { useAuth } from "../sync/AuthProvider";
 import {
   addCurrency, completeDeposit, completeGoal, contributeGoal, createBudget, createCategory,
@@ -23,6 +24,7 @@ const TITLES: Record<Tab, string> = {
   dashboard: "Dashboard", transactions: "Transactions", budgets: "Budgets", goals: "Goals",
   bank: "Bank", debts: "Debts", subscriptions: "Subscriptions", settings: "Settings", more: "More",
 };
+const LOGO = require("../../assets/logo-mark-light.png");
 const EMPTY: Form = { amount: "", name: "", note: "", date: todayISO(), end: todayISO(), due: "",
   rate: "", target: "", initial: "", currency: "USD", category: "", type: "expense", location: "card",
   cadence: "monthly", billingDay: String(new Date().getDate()), direction: "debt", instrument: "deposit",
@@ -122,7 +124,7 @@ export function MainScreen() {
     return <View style={styles.progress}><View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, value))}%`, backgroundColor: color }]} /></View>;
   }
   function Empty({ text }: { text: string }) { return <Text style={styles.empty}>{text}</Text>; }
-  function DeleteButton({ onPress }: { onPress: () => void }) { return <Pressable onPress={onPress} hitSlop={8}><Text style={styles.delete}>Delete</Text></Pressable>; }
+  function DeleteButton({ onPress }: { onPress: () => void }) { return <Pressable onPress={onPress} hitSlop={8} accessibilityLabel="Delete"><IconTrash color={palette.expense} size={20} /></Pressable>; }
   function Amount({ cents, currency, kind }: { cents: number; currency: string; kind?: CategoryType }) {
     return <Text style={[styles.amount, kind === "income" && styles.income, kind === "expense" && styles.expense]}>{kind === "income" ? "+" : kind === "expense" ? "−" : ""}{formatMoney(cents, currency)}</Text>;
   }
@@ -229,12 +231,12 @@ export function MainScreen() {
   }
 
   function More() {
-    const items: { id: Tab; icon: string; label: string; detail: string }[] = [
-      { id: "budgets", icon: "▤", label: "Budgets", detail: "Monthly limits" }, { id: "bank", icon: "▥", label: "Bank", detail: "Deposits & loans" },
-      { id: "debts", icon: "⇄", label: "Debts", detail: "People & rentals" }, { id: "subscriptions", icon: "↻", label: "Subscriptions", detail: "Recurring money" },
-      { id: "settings", icon: "⚙", label: "Settings", detail: "Account & data" },
+    const items: { id: Tab; icon: ComponentType<IconProps>; label: string; detail: string }[] = [
+      { id: "goals", icon: IconTarget, label: "Goals", detail: "Savings targets" }, { id: "budgets", icon: IconWallet, label: "Budgets", detail: "Monthly limits" }, { id: "bank", icon: IconDeposit, label: "Bank", detail: "Deposits & loans" },
+      { id: "debts", icon: IconScale, label: "Debts", detail: "People & rentals" }, { id: "subscriptions", icon: IconRefresh, label: "Subscriptions", detail: "Recurring money" },
+      { id: "settings", icon: IconGear, label: "Settings", detail: "Account & data" },
     ];
-    return <View style={styles.menuGrid}>{items.map((item) => <Pressable key={item.id} onPress={() => changeTab(item.id)} style={({ pressed }) => [styles.menuCard, pressed && styles.pressed]}><Text style={styles.menuIcon}>{item.icon}</Text><Text style={styles.menuLabel}>{item.label}</Text><Text style={styles.meta}>{item.detail}</Text></Pressable>)}</View>;
+    return <View style={styles.menuGrid}>{items.map((item) => <Pressable key={item.id} onPress={() => changeTab(item.id)} style={({ pressed }) => [styles.menuCard, pressed && styles.pressed]}><View style={styles.menuIcon}><item.icon color={palette.accent} size={30} /></View><Text style={styles.menuLabel}>{item.label}</Text><Text style={styles.meta}>{item.detail}</Text></Pressable>)}</View>;
   }
 
   function Settings() {
@@ -251,22 +253,22 @@ export function MainScreen() {
 
   const screen = tab === "dashboard" ? Dashboard() : tab === "transactions" ? Transactions() : tab === "budgets" ? Budgets() : tab === "goals" ? Goals() : tab === "bank" ? FinancialList({ source: "bank" }) : tab === "debts" ? FinancialList({ source: "informal" }) : tab === "subscriptions" ? Subscriptions() : tab === "settings" ? Settings() : More();
   const canAdd = ["transactions", "budgets", "goals", "bank", "debts", "subscriptions"].includes(tab);
-  const mainTabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "dashboard", label: "Dashboard", icon: "⌂" }, { id: "transactions", label: "Transactions", icon: "☷" },
-    { id: "goals", label: "Goals", icon: "◎" }, { id: "more", label: "More", icon: "•••" },
+  const mainTabs: { id: Tab; label: string; icon: ComponentType<IconProps> }[] = [
+    { id: "dashboard", label: "Dashboard", icon: IconHome }, { id: "transactions", label: "Transactions", icon: IconList },
+    { id: "more", label: "More", icon: IconMore },
   ];
 
   return <KeyboardAvoidingView style={styles.shell} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-    <View style={styles.header}><View style={styles.brandRow}><View style={styles.coin}><Text style={styles.coinText}>¢</Text></View><Text style={styles.brand}>f<Text style={styles.brandAccent}>1</Text>nancer</Text></View>
-      <View style={styles.titleRow}><View style={styles.listMain}>{(tab === "dashboard" || tab === "budgets") ? <View style={styles.monthRow}><Pressable onPress={() => setMonth(shiftMonth(month, -1))}><Text style={styles.headerAction}>‹</Text></Pressable><Text style={styles.pageTitle}>{monthLabel(month)}</Text><Pressable onPress={() => setMonth(shiftMonth(month, 1))}><Text style={styles.headerAction}>›</Text></Pressable></View> : <Text style={styles.pageTitle}>{TITLES[tab]}</Text>}</View>
-        {canAdd && <Pressable onPress={() => setComposer((value) => !value)}><Text style={styles.addText}>{composer ? "Cancel" : "Add"}</Text></Pressable>}</View>
+    <View style={styles.header}>
+      <View style={styles.titleRow}>{tab === "dashboard" ? <Image source={LOGO} style={styles.logo} accessibilityLabel="f1nancer" /> : <View style={styles.headerSide} />}<View style={[styles.headerTitle, tab !== "dashboard" && styles.headerTitleCentered]}>{(tab === "dashboard" || tab === "budgets") ? <View style={styles.monthRow}><Pressable onPress={() => setMonth(shiftMonth(month, -1))} hitSlop={8} accessibilityLabel="Previous month"><IconChevronLeft color={palette.sidebarText} size={26} /></Pressable><Text style={styles.pageTitle} numberOfLines={1} adjustsFontSizeToFit>{monthLabel(month)}</Text><Pressable onPress={() => setMonth(shiftMonth(month, 1))} hitSlop={8} accessibilityLabel="Next month"><IconChevronRight color={palette.sidebarText} size={26} /></Pressable></View> : <Text style={styles.pageTitle}>{TITLES[tab]}</Text>}</View>
+        {tab === "dashboard" ? canAdd && <Pressable onPress={() => setComposer((value) => !value)}><Text style={styles.addText}>{composer ? "Cancel" : "Add"}</Text></Pressable> : <View style={[styles.headerSide, styles.headerSideEnd]}>{canAdd && <Pressable onPress={() => setComposer((value) => !value)}><Text style={styles.addText} numberOfLines={1} adjustsFontSizeToFit>{composer ? "Cancel" : "Add"}</Text></Pressable>}</View>}</View>
     </View>
     {error && <View style={styles.errorBanner}><Text style={styles.errorText}>{error}</Text><Pressable onPress={() => setError(null)}><Text style={styles.errorText}>×</Text></Pressable></View>}
     {notice && <View style={styles.noticeBanner}><Text style={styles.noticeText}>{notice}</Text><Pressable onPress={() => setNotice(null)}><Text style={styles.noticeText}>×</Text></Pressable></View>}
     <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} tintColor={palette.accent} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} />}>
       {Composer()}{data ? screen : <View style={styles.loading}><Text style={styles.meta}>Loading your finances…</Text></View>}
     </ScrollView>
-    <View style={styles.tabs}>{mainTabs.map((item) => { const active = tab === item.id || (item.id === "more" && !["dashboard", "transactions", "goals"].includes(tab)); return <Pressable key={item.id} onPress={() => changeTab(item.id)} style={styles.tab}><Text style={[styles.tabIcon, active && styles.tabOn]}>{item.icon}</Text><Text style={[styles.tabText, active && styles.tabOn]}>{item.label}</Text></Pressable>; })}</View>
+    <View style={styles.tabs}>{mainTabs.map((item) => { const active = tab === item.id || (item.id === "more" && !["dashboard", "transactions"].includes(tab)); return <Pressable key={item.id} onPress={() => changeTab(item.id)} style={styles.tab}><View style={styles.tabIcon}><item.icon color={active ? palette.accentBright : palette.sidebarMuted} size={22} /></View><Text style={[styles.tabText, active && styles.tabOn]}>{item.label}</Text></Pressable>; })}</View>
   </KeyboardAvoidingView>;
 }
 
@@ -274,10 +276,9 @@ function makeStyles(c: Palette) {
   return StyleSheet.create({
     shell: { flex: 1, backgroundColor: c.bg }, scroll: { flex: 1 }, body: { padding: 16, paddingBottom: 32, gap: 14 },
     header: { backgroundColor: c.sidebar, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 14, gap: 14 },
-    brandRow: { flexDirection: "row", alignItems: "center", gap: 9 }, coin: { width: 28, height: 28, borderRadius: 14, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" },
-    coinText: { color: "#fff", fontWeight: "800", fontSize: 18 }, brand: { color: c.sidebarText, fontFamily: Platform.OS === "ios" ? "Georgia" : "serif", fontSize: 21, fontWeight: "600", letterSpacing: .4 }, brandAccent: { color: c.accentBright },
-    titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, pageTitle: { color: c.sidebarText, fontFamily: Platform.OS === "ios" ? "Georgia" : "serif", fontSize: 25, fontWeight: "600" },
-    monthRow: { flexDirection: "row", alignItems: "center", gap: 12 }, headerAction: { color: c.sidebarText, fontSize: 32, lineHeight: 32 }, addText: { color: c.accentBright, fontWeight: "700", fontSize: 16, padding: 6 },
+    logo: { width: 40, height: 40 },
+    titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }, pageTitle: { color: c.sidebarText, fontFamily: Platform.OS === "ios" ? "Georgia" : "serif", fontSize: 25, fontWeight: "600" },
+    headerTitle: { flex: 1, minWidth: 0, alignItems: "flex-end" }, headerTitleCentered: { alignItems: "center" }, headerSide: { width: 64 }, headerSideEnd: { alignItems: "flex-end" }, monthRow: { flexDirection: "row", alignItems: "center", gap: 12 }, headerAction: { color: c.sidebarText, fontSize: 32, lineHeight: 32 }, addText: { color: c.accentBright, fontWeight: "700", fontSize: 16, padding: 6 },
     stack: { gap: 14 }, section: { backgroundColor: c.elevated, borderWidth: 1, borderColor: c.line, borderRadius: 15, padding: 16, gap: 13, shadowColor: c.shadow, shadowOpacity: .08, shadowRadius: 15, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
     sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }, sectionTitle: { color: c.ink, fontFamily: Platform.OS === "ios" ? "Georgia" : "serif", fontSize: 20, fontWeight: "600" },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.line, borderRadius: 15, padding: 16, gap: 9 }, cardAccent: { backgroundColor: c.sidebar, borderColor: c.sidebar }, cardDanger: { borderColor: c.dangerSoft, backgroundColor: c.dangerBg },
@@ -289,9 +290,9 @@ function makeStyles(c: Palette) {
     listRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }, listMain: { flex: 1, minWidth: 0 }, itemTitle: { color: c.ink, fontSize: 15, fontWeight: "700" }, meta: { color: c.muted, fontSize: 12, lineHeight: 18 }, amount: { color: c.ink, fontWeight: "700", fontSize: 14 }, income: { color: c.income }, expense: { color: c.expense }, alignEnd: { alignItems: "flex-end", gap: 3 }, categoryDot: { width: 9, height: 9, borderRadius: 5 },
     between: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }, metric: { gap: 7 }, progress: { height: 7, backgroundColor: c.track, borderRadius: 99, overflow: "hidden" }, progressFill: { height: "100%", borderRadius: 99 }, cardValue: { color: c.ink, fontFamily: Platform.OS === "ios" ? "Georgia" : "serif", fontSize: 27, fontWeight: "600" },
     actionRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 3 }, inlineForm: { gap: 9, marginTop: 7 }, link: { color: c.accent, fontWeight: "700" }, delete: { color: c.expense, fontSize: 12, fontWeight: "700", paddingVertical: 3 }, dangerText: { color: c.expense }, empty: { color: c.muted, textAlign: "center", paddingVertical: 18, lineHeight: 20 }, loading: { paddingVertical: 60, alignItems: "center" },
-    menuGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 }, menuCard: { width: "48%", minHeight: 132, backgroundColor: c.elevated, borderWidth: 1, borderColor: c.line, borderRadius: 15, padding: 16, justifyContent: "flex-end", gap: 5 }, menuIcon: { color: c.accent, fontSize: 28, fontWeight: "600", marginBottom: 10 }, menuLabel: { color: c.ink, fontSize: 17, fontWeight: "700" },
+    menuGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 }, menuCard: { width: "48%", minHeight: 132, backgroundColor: c.elevated, borderWidth: 1, borderColor: c.line, borderRadius: 15, padding: 16, justifyContent: "flex-end", gap: 5 }, menuIcon: { marginBottom: 10 }, menuLabel: { color: c.ink, fontSize: 17, fontWeight: "700" },
     statusRow: { flexDirection: "row", alignItems: "center", gap: 10 }, statusDot: { width: 10, height: 10, borderRadius: 5 }, consentRow: { flexDirection: "row", alignItems: "center", gap: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line, paddingTop: 13 }, consentMark: { width: 22, height: 22, borderWidth: 1, borderColor: c.accent, borderRadius: 5, color: c.accent, textAlign: "center", lineHeight: 20, fontWeight: "800" }, signOut: { borderWidth: 1, borderColor: c.dangerSoft, backgroundColor: c.dangerBg, padding: 13, borderRadius: 11, alignItems: "center" }, signOutText: { color: c.expense, fontWeight: "700" },
     errorBanner: { flexDirection: "row", justifyContent: "space-between", gap: 10, backgroundColor: c.dangerBg, borderBottomWidth: 1, borderBottomColor: c.dangerSoft, paddingHorizontal: 16, paddingVertical: 10 }, errorText: { color: c.expense, fontWeight: "600" }, noticeBanner: { flexDirection: "row", justifyContent: "space-between", gap: 10, backgroundColor: c.accentSoft, paddingHorizontal: 16, paddingVertical: 10 }, noticeText: { color: c.accent, fontWeight: "600" },
-    tabs: { flexDirection: "row", backgroundColor: c.sidebar, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.sidebarLine, paddingTop: 5, paddingBottom: Platform.OS === "ios" ? 18 : 7 }, tab: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 50, gap: 1 }, tabIcon: { color: c.sidebarMuted, fontSize: 21, fontWeight: "600" }, tabText: { color: c.sidebarMuted, fontSize: 10, fontWeight: "700" }, tabOn: { color: c.accentBright },
+    tabs: { flexDirection: "row", backgroundColor: c.sidebar, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.sidebarLine, paddingTop: 5, paddingBottom: Platform.OS === "ios" ? 18 : 7 }, tab: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 50, gap: 1 }, tabIcon: { height: 26, justifyContent: "center" }, tabText: { color: c.sidebarMuted, fontSize: 10, fontWeight: "700" }, tabOn: { color: c.accentBright },
   });
 }

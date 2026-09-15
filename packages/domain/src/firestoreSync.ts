@@ -58,7 +58,11 @@ async function rowForOperation(
     [op.id, userId],
   );
   if (!row) return null;
-  return coerceSyncRecord(table, row) as BackupRow;
+  const record = coerceSyncRecord(table, row) as BackupRow;
+  // Firestore rules keep recurring_rules.active as a 0/1 integer, unlike the
+  // legacy Postgres boolean that coerceSyncRecord produces.
+  if (table === 'recurring_rules') record.active = record.active ? 1 : 0;
+  return record;
 }
 
 async function uploadPending(

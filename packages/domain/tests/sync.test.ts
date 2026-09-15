@@ -11,6 +11,7 @@ import { uploadSyncBatch } from '../src/syncUpload';
 import { parseCachedSession } from '../src/cachedSession';
 import { readUploadIssues, repairUpload } from '../src/uploadRecovery';
 import { coerceSyncRecord } from '../src/syncCoerce';
+import { syncFirestoreAccount } from '../src/firestoreSync';
 
 const USER = '11111111-1111-4111-8111-111111111111';
 const OTHER = '22222222-2222-4222-8222-222222222222';
@@ -106,6 +107,18 @@ test('uploader never acknowledges errors or incomplete receipts; conflict eviden
   await uploadSyncBatch(db, { rpc: async () => ({ data: [{ op_id: '1', conflict: true }], error: null }) }, randomUUID()); assert.equal(completed, 1);
   assert.deepEqual(coerceSyncRecord('recurring_rules', { active: '0', note: '' }), { active: false, note: '' });
   assert.deepEqual(coerceSyncRecord('transactions', { note: 'updated' }), { note: 'updated' });
+});
+test('Firestore uploads keep recurring_rules.active as the 0/1 integer the owner rules require', async () => {
+  const { db, sql } = sqlite(); await initializeSyncStorage(db, randomUUID); const b = fixture();
+  await importBackup(db, b, await exportBackup(db, USER, PROJECT, b.sync), new Set(), randomUUID);
+  sql.exec('CREATE TABLE IF NOT EXISTS ps_crud (data TEXT)');
+  const rule = b.tables.recurring_rules[0];
+  let batches = [{ crud: [{ clientId: 1, table: 'recurring_rules', id: rule.id, op: 'PUT', opData: {} }], complete: async () => {} }];
+  db.getNextCrudTransaction = async () => batches.shift() ?? null;
+  const sent: any[] = [];
+  const cloud = { readAll: async (table: string) => (b.tables as any)[table], apply: async (ops: any[]) => { sent.push(...ops); return ops.map(op => ({ opId: op.opId })); } };
+  await syncFirestoreAccount(db, cloud, USER, randomUUID(), PROJECT);
+  assert.equal(sent[0].row.active, 0);
 });
 test('account databases isolate users and preserve the legacy file and persistent instance ID', async () => {
   const files = new Map(); const values = new Map();

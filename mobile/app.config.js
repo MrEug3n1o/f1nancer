@@ -50,7 +50,7 @@ const expoConfig = {
     permissions: ["REQUEST_INSTALL_PACKAGES"],
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
-      backgroundColor: "#0f1419",
+      backgroundColor: "#ffffff",
     },
   },
   plugins: [],

@@ -24,6 +24,7 @@ import {
   GoalsView,
   MoneyLocationView,
   OverviewView,
+  IncomeCategoryView,
   PocketView,
   SpendCategoryView,
 } from "../components/dashboardViews";
@@ -59,6 +60,7 @@ const DEFAULT_WIDGETS = [
   "overview",
   "money_location",
   "spend_by_category",
+  "income_by_category",
   "budgets",
   "goals",
   "deposits",
@@ -70,6 +72,7 @@ const WIDGET_TITLES: Record<DashboardWidgetId, string> = {
   overview: "Month overview",
   money_location: "Cash & card flow",
   spend_by_category: "Spend by category",
+  income_by_category: "Income by category",
   budgets: "Budget progress",
   category_table: "Category breakdown",
   goals: "Goals",
@@ -119,12 +122,14 @@ export function DashboardPage() {
   const [pocket, setPocket] = useState<PocketOverview | null>(null);
   const [moneyLocation, setMoneyLocation] = useState<MoneyLocationOverview | null>(null);
   const [spend, setSpend] = useState<CategorySpend[]>([]);
+  const [income, setIncome] = useState<CategorySpend[]>([]);
   const [goals, setGoals] = useState<GoalProgress[]>([]);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [rentalDeposits, setRentalDeposits] = useState<Deposit[]>([]);
   const [creditDebts, setCreditDebts] = useState<CreditDebt[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [spendCurrency, setSpendCurrency] = useState("");
+  const [incomeCurrency, setIncomeCurrency] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -142,13 +147,17 @@ export function DashboardPage() {
       const spendUrl = spendCurrency
         ? `/analytics/spend-by-category?month=${month}&currency=${spendCurrency}`
         : `/analytics/spend-by-category?month=${month}`;
-      const [ov, pocketData, ml, sp, gp, bu, dep, rentals, cd] = await Promise.all([
+      const incomeUrl = incomeCurrency
+        ? `/analytics/income-by-category?month=${month}&currency=${incomeCurrency}`
+        : `/analytics/income-by-category?month=${month}`;
+      const [ov, pocketData, ml, sp, inc, gp, bu, dep, rentals, cd] = await Promise.all([
         api.get<MonthOverview>(`/analytics/month-overview?month=${month}`),
         api.get<PocketOverview>("/analytics/pocket"),
         api.get<MoneyLocationOverview>(
           `/analytics/money-location-overview?month=${month}`,
         ),
         api.get<CategorySpend[]>(spendUrl),
+        api.get<CategorySpend[]>(incomeUrl),
         api.get<GoalProgress[]>("/analytics/goals-progress"),
         api.get<Budget[]>(`/budgets?month=${month}`),
         api.get<Deposit[]>("/deposits?type=bank"),
@@ -159,6 +168,7 @@ export function DashboardPage() {
       setPocket(pocketData);
       setMoneyLocation(ml);
       setSpend(sp);
+      setIncome(inc);
       setGoals(gp);
       setBudgets(bu);
       setDeposits(dep.filter((d) => d.status === "active"));
@@ -169,7 +179,7 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [month, spendCurrency]);
+  }, [month, spendCurrency, incomeCurrency]);
 
   useEffect(() => {
     void load();
@@ -180,6 +190,12 @@ export function DashboardPage() {
       setSpendCurrency(overview.currencies[0].currency_code);
     }
   }, [overview, spendCurrency]);
+
+  useEffect(() => {
+    if (overview && overview.currencies.length === 1 && !incomeCurrency) {
+      setIncomeCurrency(overview.currencies[0].currency_code);
+    }
+  }, [overview, incomeCurrency]);
 
   useEffect(() => {
     if (!dashboardCustomizing) {
@@ -239,6 +255,11 @@ export function DashboardPage() {
     if (!spendCurrency) return spend;
     return spend.filter((s) => s.currency_code === spendCurrency);
   }, [spend, spendCurrency]);
+
+  const incomeForPie = useMemo(() => {
+    if (!incomeCurrency) return income;
+    return income.filter((s) => s.currency_code === incomeCurrency);
+  }, [income, incomeCurrency]);
 
   const currencyOptions = overview?.currencies.map((c) => c.currency_code) ?? [];
 
@@ -328,6 +349,25 @@ export function DashboardPage() {
       </label>
     ) : null;
 
+  const incomeCurrencyFilter =
+    currencyOptions.length > 1 ? (
+      <label className="inline-filter">
+        Currency
+        <Select
+          compact
+          value={incomeCurrency}
+          onChange={(e) => setIncomeCurrency(e.target.value)}
+        >
+          <option value="">All (separate)</option>
+          {currencyOptions.map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </Select>
+      </label>
+    ) : null;
+
   function widgetBody(id: DashboardWidgetId): ReactNode {
     switch (id) {
       case "pocket":
@@ -376,6 +416,21 @@ export function DashboardPage() {
             view={resolveWidgetView("spend_by_category", widgetViews)}
             data={spendForPie}
             spendCurrency={spendCurrency}
+            locale={locale}
+            resolvedTheme={resolvedTheme}
+          />
+        );
+      case "income_by_category":
+        return incomeForPie.length === 0 ? (
+          <EmptyState
+            title="No income this month"
+            hint="Add transactions to see the breakdown."
+          />
+        ) : (
+          <IncomeCategoryView
+            view={resolveWidgetView("income_by_category", widgetViews)}
+            data={incomeForPie}
+            spendCurrency={incomeCurrency}
             locale={locale}
             resolvedTheme={resolvedTheme}
           />
@@ -466,6 +521,14 @@ export function DashboardPage() {
         </>
       );
     }
+    if (id === "income_by_category") {
+      return (
+        <>
+          {viewPicker(id)}
+          {incomeCurrencyFilter}
+        </>
+      );
+    }
     if (id === "pocket") return undefined;
     return viewPicker(id);
   }
@@ -480,7 +543,9 @@ export function DashboardPage() {
     const headerActions =
       item.id === "spend_by_category" && !dashboardCustomizing
         ? spendCurrencyFilter
-        : undefined;
+        : item.id === "income_by_category" && !dashboardCustomizing
+          ? incomeCurrencyFilter
+          : undefined;
     return {
       title: WIDGET_TITLES[item.id],
       visible: visibleSet.has(item.id),

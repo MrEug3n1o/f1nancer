@@ -5,10 +5,15 @@
     "moduleResolution": "bundler",
     "target": "ESNext",
     "module": "ESNext",
-    "customConditions": ["react-native"],
+    "customConditions": [
+      "react-native"
+    ],
     "skipLibCheck": true,
     "paths": {
-      "@f1nancer/domain": ["../packages/domain/src/index.ts"]
+      "@f1nancer/domain": [
+        "../packages/domain/src/index.ts"
+      ]
     }
-  }
+  },
+  "extends": "expo/tsconfig.base"
 }
