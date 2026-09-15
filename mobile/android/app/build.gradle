@@ -92,8 +92,8 @@ android {
         applicationId 'app.f1nancer.mobile'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1026
-        versionName "0.1.26"
+        versionCode 1027
+        versionName "0.1.27"
     }
     signingConfigs {
         debug {
