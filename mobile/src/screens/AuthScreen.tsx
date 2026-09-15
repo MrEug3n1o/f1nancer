@@ -57,12 +57,12 @@ export function AuthScreen() {
           style={styles.input}
           autoCapitalize="none"
           autoCorrect={false}
-          keyboardType={mode === "signup" ? "email-address" : "default"}
-          placeholder={mode === "signup" ? "Email" : "Email or old username"}
+          keyboardType="email-address"
+          placeholder="Email"
           value={identifier}
           onChangeText={setIdentifier}
         />
-        <Text style={styles.muted}>{mode === "signin" ? "Old accounts can sign in once with their username, then add a real email." : "We’ll send a verification link. Marketing email requires separate consent."}</Text>
+        {mode === "signup" ? <Text style={styles.muted}>We’ll send a verification link. Marketing email requires separate consent.</Text> : null}
         <TextInput
           style={styles.input}
           secureTextEntry

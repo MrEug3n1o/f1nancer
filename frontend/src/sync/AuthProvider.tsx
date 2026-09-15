@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   createSerialQueue, FINANCE_TABLES, formatSyncError, syncFirestoreAccount,
-  usernameToEmail, validatePassword, validateUsername, type SyncStatusError,
+  validatePassword, type SyncStatusError,
 } from '@f1nancer/domain';
 import {
   createUserWithEmailAndPassword, onAuthStateChanged, reload,
@@ -20,6 +20,21 @@ import {
 
 const LEGACY_EMAIL_SUFFIX = '@users.f1nancer.local';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isFirebaseErrorCode(error: unknown, code: string): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code: unknown }).code === code;
+}
+
+async function sendVerificationEmail(user: User): Promise<void> {
+  try {
+    await sendEmailVerification(user);
+  } catch (error) {
+    if (isFirebaseErrorCode(error, 'auth/too-many-requests')) {
+      throw new Error('Too many verification emails were sent recently. Wait about an hour, then try again — check spam too.');
+    }
+    throw error;
+  }
+}
 
 export interface AppSession { user: { id: string; email: string | null } }
 export interface SyncInfo { connected: boolean; hasSynced: boolean; pendingUploads: number; lastSyncedAt: string | null; conflicts: number }
@@ -49,11 +64,6 @@ function normalizedEmail(value: string): string {
   if (!EMAIL_PATTERN.test(email) || email.length > 254) throw new Error('Enter a valid email address.');
   if (email.endsWith(LEGACY_EMAIL_SUFFIX)) throw new Error('Enter your real email address.');
   return email;
-}
-
-function signInEmail(identifier: string): string {
-  const value = identifier.trim().toLowerCase();
-  return value.includes('@') ? normalizedEmail(value) : usernameToEmail(validateUsername(value));
 }
 
 async function loadOrSeedAccountProfile(user: User): Promise<AccountProfile> {
@@ -147,12 +157,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback((identifier: string, password: string) => serializeAuth(async () => {
     validatePassword(password);
-    await signInWithEmailAndPassword(firebaseAuth, signInEmail(identifier), password);
+    await signInWithEmailAndPassword(firebaseAuth, normalizedEmail(identifier), password);
   }), []);
   const signUp = useCallback((emailInput: string, password: string) => serializeAuth(async () => {
     const email = normalizedEmail(emailInput); validatePassword(password);
     const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
-    await sendEmailVerification(credential.user);
+    await sendVerificationEmail(credential.user);
   }), []);
   const signOut = useCallback(() => serializeAuth(async () => {
     const m = await import('./database');
@@ -180,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const current = firebaseAuth.currentUser;
     if (!current) throw new Error('Sign in again first.');
     if (current.emailVerified) return;
-    await sendEmailVerification(current);
+    await sendVerificationEmail(current);
   }, []);
   const refreshEmailVerification = useCallback(async () => {
     const current = firebaseAuth.currentUser;

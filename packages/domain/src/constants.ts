@@ -1,22 +1,3 @@
-export const AUTH_EMAIL_DOMAIN = "users.f1nancer.local";
-
-export const RESERVED_USERNAMES = new Set([
-  "admin",
-  "administrator",
-  "api",
-  "auth",
-  "f1nancer",
-  "help",
-  "null",
-  "root",
-  "support",
-  "system",
-  "undefined",
-  "user",
-]);
-
-export const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
-
 export const DEFAULT_CATEGORIES: readonly [string, "income" | "expense", string][] = [
   ["Salary", "income", "#2D6A4F"],
   ["Freelance", "income", "#40916C"],

@@ -35,10 +35,10 @@ export function AuthPage() {
         <ErrorBanner message={error} />
         <form className="stack" onSubmit={onSubmit}>
           <label>
-            {mode === "signup" ? "Email" : "Email or old username"}
+            Email
             <input
-              type={mode === "signup" ? "email" : "text"}
-              autoComplete={mode === "signup" ? "email" : "username"}
+              type="email"
+              autoComplete="email"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               required
@@ -61,7 +61,7 @@ export function AuthPage() {
             {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
           </button>
         </form>
-        {mode === "signin" ? <p className="muted small">Existing account? Your old username and password still work once, then we’ll help you add a real email.</p> : <p className="muted small">We’ll send a verification link. Product or marketing email still requires separate consent.</p>}
+        {mode === "signup" ? <p className="muted small">We’ll send a verification link. Product or marketing email still requires separate consent.</p> : null}
         <p className="muted small">
           {mode === "signup" ? "Already have an account?" : "New here?"}{" "}
           <button

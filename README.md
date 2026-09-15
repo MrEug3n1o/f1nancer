@@ -143,7 +143,7 @@ npm install
 npx expo start
 ```
 
-Use the same email and password as desktop. Existing pre-migration accounts may use their old username once and will then be asked to verify a real email. Create a transaction in airplane mode, then reconnect — it should appear on desktop and in Firestore.
+Use the same email and password as desktop. Create a transaction in airplane mode, then reconnect — it should appear on desktop and in Firestore.
 
 Production APK builds use EAS (`mobile/eas.json` profile `apk`).
 

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   createSerialQueue, FINANCE_TABLES, formatSyncError, syncFirestoreAccount,
-  usernameToEmail, validatePassword, validateUsername, type SyncStatusError,
+  validatePassword, type SyncStatusError,
 } from '@f1nancer/domain';
 import {
   createUserWithEmailAndPassword, onAuthStateChanged, reload,
@@ -45,9 +45,19 @@ function normalizedEmail(value: string): string {
   if (email.endsWith(LEGACY_EMAIL_SUFFIX)) throw new Error('Enter your real email address.');
   return email;
 }
-function signInEmail(identifier: string): string {
-  const value = identifier.trim().toLowerCase();
-  return value.includes('@') ? normalizedEmail(value) : usernameToEmail(validateUsername(value));
+function isFirebaseErrorCode(error: unknown, code: string): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code: unknown }).code === code;
+}
+
+async function sendVerificationEmail(user: User): Promise<void> {
+  try {
+    await sendEmailVerification(user);
+  } catch (error) {
+    if (isFirebaseErrorCode(error, 'auth/too-many-requests')) {
+      throw new Error('Too many verification emails were sent recently. Wait about an hour, then try again — check spam too.');
+    }
+    throw error;
+  }
 }
 
 async function loadOrSeedAccountProfile(user: User): Promise<AccountProfile> {
@@ -136,12 +146,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [userId, emailVerified, profileUid]);
 
   const signIn = useCallback((identifier: string, password: string) => serializeAuth(async () => {
-    validatePassword(password); await signInWithEmailAndPassword(firebaseAuth, signInEmail(identifier), password);
+    validatePassword(password); await signInWithEmailAndPassword(firebaseAuth, normalizedEmail(identifier), password);
   }), []);
   const signUp = useCallback((input: string, password: string) => serializeAuth(async () => {
     const email = normalizedEmail(input); validatePassword(password);
     const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
-    await sendEmailVerification(credential.user);
+    await sendVerificationEmail(credential.user);
   }), []);
   const signOut = useCallback(() => serializeAuth(async () => {
     const m = await import('./database');
@@ -166,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const current = firebaseAuth.currentUser;
     if (!current) throw new Error('Sign in again first.');
     if (current.emailVerified) return;
-    await sendEmailVerification(current);
+    await sendVerificationEmail(current);
   }, []);
   const refreshEmailVerification = useCallback(async () => {
     const current = firebaseAuth.currentUser;

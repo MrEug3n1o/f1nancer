@@ -509,9 +509,10 @@ function TreemapNode(props: {
   width?: number;
   height?: number;
   name?: string;
+  color?: string;
   fill?: string;
 }) {
-  const { x = 0, y = 0, width = 0, height = 0, name, fill } = props;
+  const { x = 0, y = 0, width = 0, height = 0, name, color, fill } = props;
   if (width < 4 || height < 4) return null;
   return (
     <g>
@@ -520,7 +521,7 @@ function TreemapNode(props: {
         y={y}
         width={width}
         height={height}
-        fill={fill}
+        fill={color ?? fill ?? "var(--accent)"}
         stroke="var(--bg-elevated)"
         strokeWidth={2}
         rx={4}
@@ -548,6 +549,7 @@ export function ColoredTreemap({ data, height = 260 }: { data: ChartRow[]; heigh
         data={data}
         dataKey="value"
         aspectRatio={4 / 3}
+        nodeGap={3}
         stroke="var(--bg-elevated)"
         content={<TreemapNode />}
       />

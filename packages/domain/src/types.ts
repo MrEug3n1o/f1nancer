@@ -9,13 +9,6 @@ export type CreditDebtStatus = "active" | "paid" | "cancelled";
 export type MoneyLocation = "cash" | "card";
 export type ThemeMode = "light" | "dark" | "system";
 
-export interface Profile {
-  id: string;
-  username: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Category {
   id: string;
   name: string;

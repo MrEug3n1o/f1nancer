@@ -1,7 +1,16 @@
-export function currentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
+import { toISODate } from "@f1nancer/domain";
+
+export {
+  bpsToPercentInput,
+  centsToDollarsInput,
+  currentMonth,
+  dollarsToCents,
+  formatMoney,
+  parseISODate,
+  percentToBps,
+  toISODate,
+  todayISO,
+} from "@f1nancer/domain";
 
 export function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split("-").map(Number);
@@ -15,60 +24,6 @@ export function formatMonthLabel(month: string, locale?: string): string {
     month: "long",
     year: "numeric",
   });
-}
-
-export function formatMoney(
-  cents: number,
-  currency = "USD",
-  locale?: string,
-): string {
-  try {
-    return new Intl.NumberFormat(locale || undefined, {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(cents / 100);
-  } catch {
-    return `${(cents / 100).toFixed(2)} ${currency}`;
-  }
-}
-
-export function dollarsToCents(value: string): number {
-  const n = Number.parseFloat(value);
-  if (Number.isNaN(n) || n <= 0) {
-    throw new Error("Enter a positive amount");
-  }
-  return Math.round(n * 100);
-}
-
-/** Convert a percent string like "5.25" to integer basis points (525). */
-export function percentToBps(value: string): number {
-  const n = Number.parseFloat(value);
-  if (Number.isNaN(n) || n < 0) {
-    throw new Error("Enter a non-negative interest rate");
-  }
-  return Math.round(n * 100);
-}
-
-export function bpsToPercentInput(bps: number): string {
-  return (bps / 100).toFixed(2);
-}
-
-export function centsToDollarsInput(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
-
-export function toISODate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-export function parseISODate(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-export function todayISO(): string {
-  return toISODate(new Date());
 }
 
 export function shiftDateISO(iso: string, days: number): string {

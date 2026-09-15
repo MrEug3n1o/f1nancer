@@ -47,7 +47,7 @@ async function accountRecord(authResult) {
 async function signIn(page, email, password, create = false) {
   await page.goto(origin);
   if (create) await page.getByRole('button', { name: 'Create an account' }).click();
-  await page.getByLabel(create ? 'Email' : 'Email or old username').fill(email);
+  await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: create ? 'Create account' : 'Sign in', exact: true }).click();
   if (create) {
