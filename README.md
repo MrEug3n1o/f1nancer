@@ -9,7 +9,7 @@ Offline-first personal finance app for **desktop and mobile**. Track income and 
 - **Sync:** Firebase Authentication + Cloud Firestore, with on-device SQLite
 - **Shared domain:** `@f1nancer/domain` (`packages/domain`)
 - **Desktop shell:** pywebview + PyInstaller (`desktop/`) — macOS `.app`/DMG and Windows Setup.exe
-- **Local engine (packaging / updates / legacy import):** FastAPI (`backend/`)
+- **Local engine (packaging / updates):** FastAPI (`backend/`)
 
 Firebase setup and the Supabase migration/cutover runbook are in [`FIREBASE_MIGRATION.md`](FIREBASE_MIGRATION.md). Firestore rules and indexes are versioned in [`firestore.rules`](firestore.rules) and [`firestore.indexes.json`](firestore.indexes.json).
 
@@ -115,17 +115,9 @@ npm run dev
 
 Vite proxies `/api` to the local engine. Open the URL Vite prints (usually http://localhost:5173) only while developing the UI — this is not a shipped website.
 
-## Backup
+## Sync
 
 After Firebase verifies the account email, signed-in data syncs to the account's private Firestore namespace. Unverified accounts cannot create the account document or read/write finance data. The sync status shows first-download progress, pending uploads, errors, and the last successful sync. Each device also keeps a local SQLite database. Signing out disconnects sync and keeps the local copy and pending uploads for that account.
-
-Legacy (pre-sync) desktop files can be imported from Settings after you sign in:
-
-| Platform | Old database path |
-|----------|-------------------|
-| macOS | `~/Library/Application Support/F1nancer/f1nancer.db` |
-| Windows | `%LOCALAPPDATA%\F1nancer\f1nancer.db` |
-| Linux | `~/.local/share/F1nancer/f1nancer.db` |
 
 ## Mobile
 
@@ -156,17 +148,11 @@ Production APK builds use EAS (`mobile/eas.json` profile `apk`).
 - Dashboard charts: month overview, spend by category, goal progress
 - Currency setting (display only; amounts stored as integer cents)
 
-### Backups and device transfer
+### Local storage
 
-In desktop **Settings → Data & sync**, or mobile **Account → Backup & transfer**, choose **Export backup**. Transfer the JSON file to another device, sign into the same account, and choose **Import backup**. Review the preview and confirm the merge. Existing conflicting records are kept unless you explicitly select the backup value; records absent from the file are never deleted.
+Desktop now retains an application-specific browser profile and local server port. If another process occupies that port, close it and retry; the app does not silently change origins. Existing legacy files are preserved. Data discarded by an older private-browser session can only be recovered from the cloud or an existing legacy database.
 
-Export and import work from local SQLite while Firestore is unavailable. A device that has not finished downloading may export an incomplete copy. Uploaded imports are checked against cloud data; unseen conflicts are retained for review in the same backup panel. Recovery snapshots are saved before every import and can be exported there. The original operation remains local until Firestore acknowledges it. Backup files contain readable financial data and no passwords or access tokens.
-
-**Previous desktop data** is an explicit previewed migration from the old FastAPI database. It retains statuses and relationships and uses stable IDs, so repeating the migration does not create additional copies. Invalid historical data is reported before any writes.
-
-Desktop now retains an application-specific browser profile and local server port. If another process occupies that port, close it and retry; the app does not silently change origins. Existing legacy files are preserved. Data discarded by an older private-browser session can only be recovered from the cloud or an existing legacy database/backup.
-
-Expo Go uses temporary in-memory storage: export before closing it. Use a native installed build for persistent mobile data.
+Expo Go uses temporary in-memory storage, so changes not yet synced are lost when it closes. Use a native installed build for persistent mobile data.
 
 ### Sync verification
 

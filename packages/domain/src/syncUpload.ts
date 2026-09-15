@@ -1,6 +1,6 @@
 import { formatSyncError } from './syncError';
 import { coerceSyncRecord } from './syncCoerce';
-import { FINANCE_TABLES } from './backup';
+import { FINANCE_TABLES } from './financeTables';
 import type { SqlWriter } from './syncStorage';
 
 export interface UploadOperation {

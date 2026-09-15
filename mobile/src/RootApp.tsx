@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, SafeAreaView, Platform, StatusBar as NativeStatusBar } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View, SafeAreaView, Platform, StatusBar as NativeStatusBar } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "./sync/AuthProvider";
 import { AuthScreen } from "./screens/AuthScreen";
@@ -8,7 +8,7 @@ import { EmailVerificationScreen } from "./screens/EmailVerificationScreen";
 import { colors } from "./screens/theme";
 
 function Gate() {
-  const { session, loading, dbReady, dbError, syncError, syncInfo, retrySync, requiresEmailMigration, requiresEmailVerification } = useAuth();
+  const { session, loading, dbReady, dbError, requiresEmailMigration, requiresEmailVerification } = useAuth();
   const [MainScreen, setMainScreen] = useState<ComponentType | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -23,20 +23,7 @@ function Gate() {
   if (!dbReady) return <View style={styles.center}><ActivityIndicator /></View>;
   if (session && !MainScreen) return <View style={styles.center}><ActivityIndicator /></View>;
   if (!MainScreen) return <AuthScreen />;
-  const showSyncBanner = Boolean(
-    syncError ||
-    !syncInfo.connected ||
-    !syncInfo.hasSynced ||
-    syncInfo.pendingUploads > 0 ||
-    syncInfo.conflicts > 0
-  );
   return <SafeAreaView style={styles.fill}>
-    {showSyncBanner && <View style={styles.banner}>
-      <Text style={styles.bannerTitle}>{syncError ? syncError.message : syncInfo.connected && !syncInfo.hasSynced ? 'Downloading your data…' : syncInfo.connected ? 'Cloud connected' : 'Offline — local data available'}</Text>
-      <Text style={styles.bannerBody}>{syncInfo.pendingUploads} changes waiting to upload{syncInfo.lastSyncedAt ? ` · Last synced ${new Date(syncInfo.lastSyncedAt).toLocaleString()}` : ' · First cloud download not confirmed'}</Text>
-      {syncInfo.conflicts > 0 && <Text style={styles.bannerBody}>{syncInfo.conflicts} backup conflicts need review in Account.</Text>}
-      <Pressable accessibilityRole="button" onPress={() => void retrySync()}><Text style={styles.bannerBody}>Retry sync</Text></Pressable>
-    </View>}
     <MainScreen key={session.user.id} />
   </SafeAreaView>;
 }
@@ -62,14 +49,4 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 20, fontWeight: "700", color: colors.ink, textAlign: "center" },
   body: { color: colors.muted, textAlign: "center", lineHeight: 20 },
-  banner: {
-    backgroundColor: colors.elevated,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.muted,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 4,
-  },
-  bannerTitle: { color: colors.ink, fontWeight: "700", fontSize: 14 },
-  bannerBody: { color: colors.muted, fontSize: 13, lineHeight: 18 },
 });

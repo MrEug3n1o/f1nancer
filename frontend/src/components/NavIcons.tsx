@@ -124,6 +124,15 @@ export function IconCalendar({ className }: IconProps) {
   );
 }
 
+export function IconSearch({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 18 18" aria-hidden>
+      <circle cx="7.75" cy="7.75" r="4.75" {...stroke} />
+      <line x1="11.25" y1="11.25" x2="15" y2="15" {...stroke} />
+    </svg>
+  );
+}
+
 export function IconPencil({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 18 18" aria-hidden>

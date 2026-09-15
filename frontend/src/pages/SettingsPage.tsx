@@ -1,6 +1,4 @@
 import {
-  lazy,
-  Suspense,
   useEffect,
   useMemo,
   useRef,
@@ -12,6 +10,7 @@ import { api } from "../api";
 import { AppUpdatePanel } from "../components/AppUpdatePanel";
 import { IconPencil, IconTrash } from "../components/NavIcons";
 import { PillSelect } from "../components/PillSelect";
+import { SyncBanner } from "../components/SyncBanner";
 import { ErrorBanner, IconButton, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
 import { ISO_CURRENCY_CATALOG, POPULAR_CURRENCY_CODES } from "../currencyCatalog";
@@ -23,8 +22,6 @@ import type {
   ThemeMode,
 } from "../types";
 import { applyTheme } from "../utils";
-
-const BackupPanel = lazy(() => import("../components/BackupPanel").then(m => ({ default: m.BackupPanel })));
 
 export function SettingsPage() {
   const {
@@ -212,6 +209,7 @@ export function SettingsPage() {
   return (
     <div className="stack">
       <ErrorBanner message={error} />
+      <SyncBanner />
 
       <section className="section account-section">
         <div className="account-row">
@@ -458,8 +456,6 @@ export function SettingsPage() {
       </section>
 
       <AppUpdatePanel onError={setError} />
-
-      <Suspense fallback={<p>Loading backup tools…</p>}><BackupPanel /></Suspense>
     </div>
   );
 }

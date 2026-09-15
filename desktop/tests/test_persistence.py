@@ -1,5 +1,4 @@
 import importlib.util
-import json
 import socket
 import sqlite3
 import tempfile
@@ -52,19 +51,5 @@ class PersistenceTests(unittest.TestCase):
                          (current.scheme, current.hostname, current.port))
         self.assertEqual(previous.query, 'v=0.1.23')
         self.assertEqual(current.query, 'v=0.1.24')
-
-    def test_dialog_export_and_import_and_cancellation(self):
-        with tempfile.TemporaryDirectory() as directory:
-            filename = Path(directory) / 'backup.json'
-            api = module._DesktopApi()
-            class Window:
-                def create_file_dialog(self, *args, **kwargs): return [str(filename)]
-            api._window = Window()
-            payload = json.dumps({'format': 'f1nancer-backup'})
-            self.assertTrue(api.save_backup(payload))
-            self.assertEqual(payload, api.open_backup())
-            api._window.create_file_dialog = lambda *a, **k: None
-            self.assertFalse(api.save_backup(payload))
-            self.assertIsNone(api.open_backup())
 
 if __name__ == '__main__': unittest.main()

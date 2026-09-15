@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import { bindDataLayer } from '../data/repo';
 import { firebaseAuth } from './firebaseClient';
-import { firebaseProjectUrl, isSyncConfigured } from './config';
+import { isSyncConfigured } from './config';
 import { FirebaseCloudAdapter } from './firestoreCloud';
 import {
   finishAccountEmailMigration, loadAccountProfile, seedFirebaseAccount,
@@ -37,7 +37,7 @@ async function sendVerificationEmail(user: User): Promise<void> {
 }
 
 export interface AppSession { user: { id: string; email: string | null } }
-export interface SyncInfo { connected: boolean; hasSynced: boolean; pendingUploads: number; lastSyncedAt: string | null; conflicts: number }
+export interface SyncInfo { connected: boolean; hasSynced: boolean; pendingUploads: number; lastSyncedAt: string | null }
 interface AuthContextValue {
   session: AppSession | null; email: string | null;
   loading: boolean; configured: boolean; dbReady: boolean; dbError: string | null;
@@ -57,7 +57,7 @@ interface AuthContextValue {
 
 const serializeAuth = createSerialQueue();
 const AuthContext = createContext<AuthContextValue | null>(null);
-const emptySync: SyncInfo = { connected: false, hasSynced: false, pendingUploads: 0, lastSyncedAt: null, conflicts: 0 };
+const emptySync: SyncInfo = { connected: false, hasSynced: false, pendingUploads: 0, lastSyncedAt: null };
 
 function normalizedEmail(value: string): string {
   const email = value.trim().toLowerCase();
@@ -127,12 +127,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled || syncing) return;
         syncing = true;
         try {
-          const result = await syncFirestoreAccount(db, cloud, userId, instanceId, firebaseProjectUrl);
+          const result = await syncFirestoreAccount(db, cloud, userId, instanceId);
           const queue = await db.getUploadQueueStats();
-          const [conflictRow] = await db.getAll<{ count: number }>('SELECT count(*) AS count FROM f1_conflicts');
           if (!cancelled) {
             setSyncInfo({ connected: true, hasSynced: true, pendingUploads: queue.count,
-              lastSyncedAt: result.syncedAt, conflicts: conflictRow?.count ?? 0 });
+              lastSyncedAt: result.syncedAt });
             setSyncError(null); setDataRevision(value => value + 1);
           }
         } catch (error) {

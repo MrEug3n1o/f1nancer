@@ -214,19 +214,3 @@ export interface CurrencyMonthSplit {
   expense_cents: number;
 }
 
-export interface LocalExportPayload {
-  currencies: Array<{ code: string; name: string; created_at?: string }>;
-  categories: Array<{
-    id: number;
-    name: string;
-    type: CategoryType;
-    color: string;
-  }>;
-  transactions: Array<Record<string, unknown>>;
-  budgets: Array<Record<string, unknown>>;
-  goals: Array<Record<string, unknown>>;
-  deposits: Array<Record<string, unknown>>;
-  credit_debts: Array<Record<string, unknown>>;
-  recurring_rules: Array<Record<string, unknown>>;
-  settings: Record<string, unknown> | null;
-}

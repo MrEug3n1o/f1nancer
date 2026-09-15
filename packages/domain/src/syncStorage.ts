@@ -12,7 +12,6 @@ export interface SyncDatabase extends SqlWriter {
 
 export async function initializeSyncStorage(db: SqlWriter, uuid: () => string): Promise<string> {
   await db.execute('CREATE TABLE IF NOT EXISTS f1_sync_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
-  await db.execute('CREATE TABLE IF NOT EXISTS f1_recovery (id TEXT PRIMARY KEY, payload TEXT NOT NULL, created_at TEXT NOT NULL)');
   await db.execute('CREATE TABLE IF NOT EXISTS f1_upload_failures (op_id TEXT PRIMARY KEY, original TEXT NOT NULL, error TEXT NOT NULL)');
   await db.execute('CREATE TABLE IF NOT EXISTS f1_upload_repairs (op_id TEXT PRIMARY KEY, original TEXT NOT NULL, payload TEXT NOT NULL)');
   await db.execute('CREATE TABLE IF NOT EXISTS f1_conflicts (id TEXT PRIMARY KEY, payload TEXT NOT NULL)');

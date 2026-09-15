@@ -1,4 +1,4 @@
-import { BACKUP_COLUMNS, FINANCE_TABLES, validateBackup, type BackupRow, type FinanceTable } from './backup';
+import { FINANCE_COLUMNS, FINANCE_TABLES, validateFinanceTables, type FinanceRow, type FinanceTable, type FinanceTables } from './financeTables';
 import { coerceSyncRecord } from './syncCoerce';
 import { formatSyncError } from './syncError';
 import type { SyncDatabase } from './syncStorage';
@@ -9,7 +9,7 @@ export interface FirestoreUpload {
   table: FinanceTable;
   id: string;
   kind: 'set' | 'delete';
-  row?: BackupRow;
+  row?: FinanceRow;
   previousUpdatedAt?: string;
   keepExisting: boolean;
 }
@@ -17,11 +17,11 @@ export interface FirestoreUpload {
 export interface FirestoreApplyResult {
   opId: string;
   conflict?: boolean;
-  remote?: BackupRow | null;
+  remote?: FinanceRow | null;
 }
 
 export interface FirestoreCloudAdapter {
-  readAll(table: FinanceTable): Promise<BackupRow[]>;
+  readAll(table: FinanceTable): Promise<FinanceRow[]>;
   apply(operations: FirestoreUpload[]): Promise<FirestoreApplyResult[]>;
 }
 
@@ -51,14 +51,14 @@ async function rowForOperation(
   db: FirestoreLocalDatabase,
   userId: string,
   op: UploadOperation,
-): Promise<BackupRow | null> {
+): Promise<FinanceRow | null> {
   const table = op.table as FinanceTable;
-  const [row] = await db.getAll<BackupRow>(
-    `SELECT ${BACKUP_COLUMNS[table].join(', ')} FROM ${table} WHERE id = ? AND user_id = ?`,
+  const [row] = await db.getAll<FinanceRow>(
+    `SELECT ${FINANCE_COLUMNS[table].join(', ')} FROM ${table} WHERE id = ? AND user_id = ?`,
     [op.id, userId],
   );
   if (!row) return null;
-  const record = coerceSyncRecord(table, row) as BackupRow;
+  const record = coerceSyncRecord(table, row) as FinanceRow;
   // Firestore rules keep recurring_rules.active as a 0/1 integer, unlike the
   // legacy Postgres boolean that coerceSyncRecord produces.
   if (table === 'recurring_rules') record.active = record.active ? 1 : 0;
@@ -122,7 +122,7 @@ async function uploadPending(
 async function replaceLocalSnapshot(
   db: FirestoreLocalDatabase,
   userId: string,
-  rows: Record<FinanceTable, BackupRow[]>,
+  rows: Record<FinanceTable, FinanceRow[]>,
   markerId: string,
 ): Promise<number> {
   const marker = JSON.stringify({ firestorePull: markerId });
@@ -146,7 +146,7 @@ async function replaceLocalSnapshot(
       }
       for (const row of rows[table]) {
         if (pending.has(`${table}:${row.id}`)) continue;
-        const columns = BACKUP_COLUMNS[table];
+        const columns = FINANCE_COLUMNS[table];
         await tx.execute(
           `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}, _metadata) VALUES (${[...columns, '_metadata'].map(() => '?').join(', ')})`,
           [...columns.map(column => row[column]), marker],
@@ -171,16 +171,10 @@ export async function syncFirestoreAccount(
   cloud: FirestoreCloudAdapter,
   userId: string,
   instanceId: string,
-  projectUrl: string,
 ): Promise<FirestoreSyncResult> {
   const pushed = await uploadPending(database, cloud, userId, instanceId);
   const entries = await Promise.all(FINANCE_TABLES.map(async table => [table, await cloud.readAll(table)] as const));
-  const tables = Object.fromEntries(entries) as Record<FinanceTable, BackupRow[]>;
-  validateBackup({
-    format: 'f1nancer-backup', version: 1, accountId: userId,
-    project: new URL(projectUrl).origin, exportedAt: new Date().toISOString(),
-    sync: { hasSynced: true, pendingUploads: 0 }, tables,
-  }, userId, projectUrl);
+  const tables = validateFinanceTables(Object.fromEntries(entries) as FinanceTables, userId);
   const downloaded = await replaceLocalSnapshot(database, userId, tables, `${instanceId}:${Date.now()}`);
   await uploadPending(database, cloud, userId, instanceId);
   return { ...pushed, downloaded, syncedAt: new Date().toISOString() };

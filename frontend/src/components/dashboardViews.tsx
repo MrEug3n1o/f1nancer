@@ -35,6 +35,8 @@ const GOAL_COLORS = [
   "#7a6b8a",
 ];
 
+const percentLabel = (row: ChartRow) => `${Math.round(row.value)}%`;
+
 function GoalProgressRing({
   percent,
   color,
@@ -318,11 +320,11 @@ export function SpendCategoryView({
   }
 
   if (view === "radial") {
-    return <RadialChart data={rows} />;
+    return <RadialChart data={rows} locale={locale} />;
   }
 
   if (view === "treemap") {
-    return <ColoredTreemap data={rows} />;
+    return <ColoredTreemap data={rows} locale={locale} />;
   }
 
   if (view === "area" || view === "line") {
@@ -403,11 +405,11 @@ export function IncomeCategoryView({
   }
 
   if (view === "radial") {
-    return <RadialChart data={rows} />;
+    return <RadialChart data={rows} locale={locale} />;
   }
 
   if (view === "treemap") {
-    return <ColoredTreemap data={rows} />;
+    return <ColoredTreemap data={rows} locale={locale} />;
   }
 
   if (view === "area" || view === "line") {
@@ -518,7 +520,7 @@ export function BudgetsView({
       value: r.pct,
       color: r.color,
     }));
-    return <RadialChart data={rows} />;
+    return <RadialChart data={rows} max={100} formatValue={percentLabel} />;
   }
 
   if (view === "pie" || view === "donut") {
@@ -759,6 +761,8 @@ export function GoalsView({
           ...r,
           value: (r as ChartRow & { pct?: number }).pct ?? r.value,
         }))}
+        max={100}
+        formatValue={percentLabel}
       />
     );
   }
@@ -886,6 +890,8 @@ export function DepositsView({
           ...r,
           value: (r as ChartRow & { pct?: number }).pct ?? r.value,
         }))}
+        max={100}
+        formatValue={percentLabel}
       />
     );
   }
@@ -1025,6 +1031,8 @@ export function CreditsDebtsView({
           ...r,
           value: (r as ChartRow & { pct?: number }).pct ?? r.value,
         }))}
+        max={100}
+        formatValue={percentLabel}
       />
     );
   }

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from app.database import Base, SessionLocal, engine
-from app.routers import local_export, system
+from app.routers import system
 from app.schema_upgrade import ensure_schema
 from app.seed import seed_database
 from app.version import APP_VERSION
@@ -51,7 +51,6 @@ app.add_middleware(
 )
 
 app.include_router(system.router, prefix="/api")
-app.include_router(local_export.router, prefix="/api")
 
 
 @app.middleware("http")

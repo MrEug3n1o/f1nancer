@@ -1,4 +1,4 @@
-import { FINANCE_TABLES } from './backup';
+import { FINANCE_TABLES } from './financeTables';
 import { initializeSyncStorage, recordOwner, type SyncDatabase } from './syncStorage';
 export interface AccountDatabase extends SyncDatabase {
   waitForReady(): Promise<void>;

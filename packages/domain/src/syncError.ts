@@ -58,10 +58,12 @@ export function formatSyncError(err: unknown): string {
   const msg = extractSyncErrorText(err);
   if (msg.includes('permission-denied') || msg.includes('Missing or insufficient permissions'))
     return 'Firestore denied this sync operation. Your local changes are retained; sign in again, then retry. If it continues, review the deployed owner rules.';
+  if (msg.includes('resource-exhausted') || msg.includes('Quota exceeded'))
+    return 'Cloud sync paused: the Firebase daily usage quota is used up. Your local changes are retained and will upload after the quota resets.';
   if (msg.includes('unauthenticated'))
     return 'Firebase authentication expired. Your local changes are retained; sign in again to resume sync.';
   if (isUniqueConstraintError(err)) {
-    return "Cloud sync found conflicting duplicate data. Your local changes are retained. Export a backup, correct the conflicting record, then retry.";
+    return "Cloud sync found conflicting duplicate data. Your local changes are retained. Correct the conflicting record, then retry.";
   }
   return msg || "Cloud sync is unavailable.";
 }

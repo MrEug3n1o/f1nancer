@@ -286,36 +286,6 @@ class _DesktopApi:
             _log(f"Title bar UI invoke failed, applying inline: {exc}")
         apply()
 
-    def save_backup(self, payload: str) -> bool:
-        import webview
-        if len(payload.encode("utf-8")) > 50 * 1024 * 1024:
-            raise ValueError("Backup exceeds 50 MB")
-        if json.loads(payload).get("format") != "f1nancer-backup":
-            raise ValueError("Invalid backup")
-        if self._window is None:
-            raise RuntimeError("Desktop window unavailable")
-        selected = self._window.create_file_dialog(webview.SAVE_DIALOG, save_filename="F1nancer-backup.json", file_types=("JSON (*.json)",))
-        if not selected:
-            return False
-        path = Path(selected if isinstance(selected, str) else selected[0])
-        temporary = path.with_name(path.name + ".tmp")
-        with temporary.open("x", encoding="utf-8") as handle:
-            handle.write(payload)
-        os.replace(temporary, path)
-        return True
-
-    def open_backup(self) -> str | None:
-        import webview
-        if self._window is None:
-            raise RuntimeError("Desktop window unavailable")
-        selected = self._window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=("JSON (*.json)",))
-        if not selected:
-            return None
-        path = Path(selected if isinstance(selected, str) else selected[0])
-        if path.stat().st_size > 50 * 1024 * 1024:
-            raise ValueError("Backup exceeds 50 MB")
-        return path.read_text(encoding="utf-8")
-
     def set_title_bar_theme(self, theme: str) -> None:
         self._theme = "dark" if theme == "dark" else "light"
         self._reapply()

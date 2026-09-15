@@ -4,7 +4,6 @@ import {
   StyleSheet, Text, TextInput, useColorScheme, View,
 } from "react-native";
 import type { Cadence, CategoryType, CreditDebt, Deposit, MoneyLocation, ThemeMode } from "@f1nancer/domain";
-import { BackupCard } from "./BackupCard";
 import { AppUpdateCard } from "./AppUpdateCard";
 import { IconChevronLeft, IconChevronRight, IconDeposit, IconGear, IconHome, IconList, IconMore, IconRefresh, IconScale, IconTarget, IconTrash, IconWallet, type IconProps } from "./NavIcons";
 import { useAuth } from "../sync/AuthProvider";
@@ -40,7 +39,7 @@ function monthLabel(month: string) {
 }
 
 export function MainScreen() {
-  const { session, email, marketingEmailConsent, setMarketingEmailConsent, signOut, dataRevision, syncInfo } = useAuth();
+  const { session, email, marketingEmailConsent, setMarketingEmailConsent, signOut, dataRevision, syncInfo, syncError, retrySync } = useAuth();
   const userId = session!.user.id;
   const systemDark = useColorScheme() === "dark";
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -245,7 +244,7 @@ export function MainScreen() {
       <Section title="Appearance"><Choice label="Theme" value={form.theme || data.settings.theme} options={[{ id: "light", label: "Light" }, { id: "dark", label: "Dark" }, { id: "system", label: "System" }]} /><Primary label="Apply theme" onPress={() => run(() => saveSettings(userId, data.settings, { theme: form.theme as ThemeMode || data.settings.theme }), "Theme updated", false)} /></Section>
       <Section title="Default currency"><View style={styles.wrap}>{[...new Set(["USD", "EUR", "GBP", ...data.currencies.map((item) => item.code)])].map((item) => <Pill key={item} label={item} active={data.settings.default_currency_code === item} onPress={() => void run(() => saveSettings(userId, data.settings, { default_currency_code: item }), "Default currency updated", false)} />)}</View><View style={styles.inlineForm}><Input value={newCurrency} onChange={(v) => setNewCurrency(v.toUpperCase())} placeholder="Add code, e.g. CAD" /><Primary label="Add currency" onPress={() => run(() => addCurrency(userId, newCurrency), "Currency added", false).then(() => setNewCurrency(""))} /></View></Section>
       <Section title="Categories"><Choice label="Type" value={categoryType} onChange={(value) => setCategoryType(value as CategoryType)} options={[{ id: "expense", label: "Expense" }, { id: "income", label: "Income" }]} /><View style={styles.inlineForm}><Input value={categoryName} onChange={setCategoryName} placeholder="Category name" /><Primary label="Add category" onPress={() => run(() => createCategory(userId, categoryName, categoryType, categoryType === "expense" ? "#BC4749" : "#2D6A4F"), "Category added", false).then(() => setCategoryName(""))} /></View>{data.categories.map((item) => <View key={item.id} style={styles.listRow}><View style={[styles.categoryDot, { backgroundColor: item.color }]} /><View style={styles.listMain}><Text style={styles.itemTitle}>{item.name}</Text><Text style={styles.meta}>{item.type}</Text></View><DeleteButton onPress={() => confirm("Delete category?", () => deleteCategory(userId, item.id))} /></View>)}</Section>
-      <Section title="Data & sync"><View style={styles.statusRow}><View style={[styles.statusDot, { backgroundColor: syncInfo.connected ? palette.income : palette.expense }]} /><View><Text style={styles.itemTitle}>{syncInfo.connected ? "Cloud connected" : "Offline — local data available"}</Text><Text style={styles.meta}>{syncInfo.pendingUploads} changes waiting to upload</Text></View></View><BackupCard palette={palette} /></Section>
+      <Section title="Data & sync"><View style={styles.statusRow}><View style={[styles.statusDot, { backgroundColor: syncInfo.connected && !syncError ? palette.income : palette.expense }]} /><View style={styles.listMain}><Text style={styles.itemTitle}>{syncInfo.connected ? "Cloud connected" : "Offline — local data available"}</Text><Text style={styles.meta}>{syncInfo.pendingUploads} changes waiting to upload{syncInfo.lastSyncedAt ? ` · Last synced ${new Date(syncInfo.lastSyncedAt).toLocaleString()}` : ""}</Text>{syncError && <Text style={styles.meta}>{syncError.message}</Text>}</View></View>{(syncError || syncInfo.pendingUploads > 0) && <Primary label="Retry sync" onPress={() => void retrySync()} />}</Section>
       <AppUpdateCard active={tab === "settings"} palette={palette} />
       <Section title="Account"><Text style={styles.itemTitle}>Signed in as {email}</Text><Pressable disabled={busy} onPress={() => void run(() => setMarketingEmailConsent(!marketingEmailConsent), "Email preference updated", false)} style={styles.consentRow}><Text style={styles.consentMark}>{marketingEmailConsent ? "✓" : ""}</Text><View style={styles.listMain}><Text style={styles.itemTitle}>Receive occasional product updates</Text><Text style={styles.meta}>You can opt out here at any time.</Text></View></Pressable><Pressable onPress={() => void signOut().catch((e) => setError(String(e)))} style={styles.signOut}><Text style={styles.signOutText}>Sign out and keep local data</Text></Pressable></Section>
     </View>;

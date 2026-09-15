@@ -5,7 +5,6 @@ const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 function isEnginePath(path: string): boolean {
   return (
     path.startsWith("/system") ||
-    path.startsWith("/local-export") ||
     path.startsWith("/health")
   );
 }

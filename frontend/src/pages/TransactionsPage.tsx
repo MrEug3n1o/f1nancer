@@ -3,13 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { DatePicker } from "../components/DatePicker";
-import { IconPencil, IconTrash } from "../components/NavIcons";
+import { IconPencil, IconSearch, IconTrash } from "../components/NavIcons";
 import { PillSelect } from "../components/PillSelect";
 import { EmptyState, ErrorBanner, IconButton, Money, SegmentedControl } from "../components/ui";
 import { useApp } from "../context";
 import { usePageComposer } from "../hooks/usePageComposer";
 import type { Category, CategoryType, Goal, MoneyLocation, Transaction } from "../types";
 import { centsToDollarsInput, dollarsToCents, shiftDateISO, todayISO } from "../utils";
+
+type SortKey = "date" | "category" | "amount";
+type SortDir = "asc" | "desc";
 
 export function TransactionsPage() {
   const { dataRevision } = useAuth();
@@ -19,6 +22,11 @@ export function TransactionsPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [filterCategory, setFilterCategory] = useState("");
   const [filterCurrency, setFilterCurrency] = useState("");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
+    key: "date",
+    dir: "desc",
+  });
   const [form, setForm] = useState({
     amount: "",
     currency_code: defaultCurrency,
@@ -85,6 +93,72 @@ export function TransactionsPage() {
     for (const g of goals) map.set(g.id, g.name);
     return map;
   }, [goals]);
+
+  const visibleItems = useMemo(() => {
+    const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const matched = terms.length
+      ? items.filter((txn) => {
+          const haystack = [
+            txn.date,
+            txn.category?.name,
+            txn.note,
+            txn.money_location === "cash" ? "cash" : "card",
+            txn.goal_id ? goalNameById.get(txn.goal_id) : "",
+            txn.currency_code,
+            (txn.amount / 100).toFixed(2),
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          // Allow "21,60" to match "21.60".
+          return terms.every((t) => haystack.includes(t.replace(",", ".")));
+        })
+      : items;
+
+    const sign = sort.dir === "asc" ? 1 : -1;
+    return [...matched].sort((a, b) => {
+      let cmp = 0;
+      if (sort.key === "category") {
+        cmp = (a.category?.name ?? "").localeCompare(b.category?.name ?? "");
+      } else if (sort.key === "amount") {
+        const signed = (t: Transaction) => (t.type === "expense" ? -t.amount : t.amount);
+        cmp = signed(a) - signed(b);
+      }
+      if (cmp === 0) cmp = a.date.localeCompare(b.date);
+      if (cmp !== 0) return cmp * sign;
+      // Keep the newest entry first within the same group regardless of direction.
+      return b.date.localeCompare(a.date);
+    });
+  }, [goalNameById, items, search, sort]);
+
+  function toggleSort(key: SortKey) {
+    setSort((s) =>
+      s.key === key
+        ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "category" ? "asc" : "desc" },
+    );
+  }
+
+  function sortHeader(key: SortKey, label: string, className?: string) {
+    const active = sort.key === key;
+    return (
+      <th
+        className={className}
+        aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+      >
+        <button
+          type="button"
+          className={`th-sort${active ? " active" : ""}`}
+          onClick={() => toggleSort(key)}
+        >
+          {label}
+          <span className="th-sort-arrow" aria-hidden>
+            {active ? (sort.dir === "asc" ? "↑" : "↓") : "↕"}
+          </span>
+        </button>
+      </th>
+    );
+  }
 
   const load = useCallback(async () => {
     setError(null);
@@ -374,6 +448,19 @@ export function TransactionsPage() {
         <div className="row-between wrap">
           <h2>Transactions</h2>
           <div className="filters-row">
+            <label className="txn-search">
+              <IconSearch className="txn-search-icon" />
+              <input
+                type="search"
+                aria-label="Search transactions"
+                placeholder="Search…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSearch("");
+                }}
+              />
+            </label>
             <PillSelect
               className="txn-filter-category"
               ariaLabel="Category"
@@ -406,21 +493,23 @@ export function TransactionsPage() {
           <p className="muted">Loading…</p>
         ) : items.length === 0 ? (
           <EmptyState title="No transactions this month" />
+        ) : visibleItems.length === 0 ? (
+          <EmptyState title="No transactions match your search" />
         ) : (
           <table className="table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Category</th>
+                {sortHeader("date", "Date")}
+                {sortHeader("category", "Category")}
                 <th>From</th>
                 <th>Goal</th>
                 <th>Note</th>
-                <th className="num">Amount</th>
+                {sortHeader("amount", "Amount", "num")}
                 <th />
               </tr>
             </thead>
             <tbody>
-              {items.map((txn) => (
+              {visibleItems.map((txn) => (
                 <tr key={txn.id}>
                   <td>{txn.date}</td>
                   <td>

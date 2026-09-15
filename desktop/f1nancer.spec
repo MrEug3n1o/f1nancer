@@ -41,7 +41,6 @@ hiddenimports = [
     "app.models",
     "app.seed",
     "app.routers",
-    "app.routers.local_export",
     "app.routers.system",
     "app.update_service",
     "app.version",

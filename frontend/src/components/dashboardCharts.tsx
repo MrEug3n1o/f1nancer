@@ -10,8 +10,6 @@ import {
   LineChart,
   Pie,
   PieChart,
-  RadialBar,
-  RadialBarChart,
   ResponsiveContainer,
   Tooltip,
   Treemap,
@@ -140,6 +138,11 @@ export function ColoredPie({
   valueKey?: string;
   nameKey?: string;
 }) {
+  // Padding angles and rounded corners only work on donuts; on a solid pie they
+  // pull every wedge's apex away from the center. Separate wedges with a stroke instead.
+  const multi = data.length > 1;
+  const donut = innerRadius > 0;
+  const stroke = multi && !donut ? "var(--bg-elevated)" : "none";
   return (
     <ChartShell height={height}>
       <PieChart>
@@ -149,12 +152,13 @@ export function ColoredPie({
           nameKey={nameKey}
           innerRadius={innerRadius}
           outerRadius={96}
-          paddingAngle={data.length > 1 ? 3 : 0}
-          stroke="none"
-          cornerRadius={data.length > 1 ? 6 : 0}
+          paddingAngle={multi && donut ? 3 : 0}
+          stroke={stroke}
+          strokeWidth={2}
+          cornerRadius={multi && donut ? 6 : 0}
         >
           {data.map((row) => (
-            <Cell key={row.name} fill={row.color} stroke="none" />
+            <Cell key={row.name} fill={row.color} stroke={stroke} strokeWidth={2} />
           ))}
         </Pie>
         <Tooltip
@@ -466,41 +470,95 @@ export function LineAreaChart({
   );
 }
 
+function defaultValueLabel(row: ChartRow, locale?: string) {
+  return formatMoney(row.value, row.currency_code ?? "USD", locale);
+}
+
+/** Concentric progress rings, largest value outermost. */
 export function RadialChart({
   data,
-  height = 280,
+  max,
+  locale,
+  formatValue,
+  size = 220,
 }: {
   data: ChartRow[];
-  height?: number;
+  /** Value that fills a full ring; defaults to the largest value. */
+  max?: number;
+  locale?: string;
+  formatValue?: (row: ChartRow) => string;
+  size?: number;
 }) {
+  const rows = [...data].sort((a, b) => b.value - a.value);
+  if (rows.length === 0) return null;
+  const label = formatValue ?? ((row: ChartRow) => defaultValueLabel(row, locale));
+  const scaleMax = max ?? Math.max(...rows.map((r) => r.value), 1);
+  const center = size / 2;
+  const outer = center - 2;
+  const band = (outer - size * 0.14) / rows.length;
+  const strokeWidth = Math.min(18, band * 0.72);
+
   return (
-    <ChartShell height={height}>
-      <RadialBarChart
-        innerRadius="18%"
-        outerRadius="95%"
-        data={data}
-        startAngle={180}
-        endAngle={0}
-      >
-        <RadialBar
-          background={{ fill: "var(--stat-bg)" }}
-          dataKey="value"
-          cornerRadius={6}
-        >
-          {data.map((row) => (
-            <Cell key={row.name} fill={row.color} />
-          ))}
-        </RadialBar>
-        <Tooltip
-          cursor={false}
-          contentStyle={CHART_TOOLTIP_STYLE}
-          labelStyle={TOOLTIP_LABEL_STYLE}
-          itemStyle={TOOLTIP_ITEM_STYLE}
-        />
-        <Legend />
-      </RadialBarChart>
-    </ChartShell>
+    <div className="radial-chart">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img">
+        {rows.map((row, i) => {
+          const r = outer - band * i - strokeWidth / 2;
+          const circumference = 2 * Math.PI * r;
+          const pct = Math.min(1, Math.max(0, row.value / scaleMax));
+          const dash = pct * circumference;
+          return (
+            <g key={`${row.name}-${i}`}>
+              <title>{`${row.name}: ${label(row)}`}</title>
+              <circle
+                cx={center}
+                cy={center}
+                r={r}
+                fill="none"
+                stroke="var(--progress-track)"
+                strokeWidth={strokeWidth}
+              />
+              {pct > 0 ? (
+                <circle
+                  cx={center}
+                  cy={center}
+                  r={r}
+                  fill="none"
+                  stroke={row.color}
+                  strokeWidth={strokeWidth}
+                  strokeLinecap={pct < 1 ? "round" : "butt"}
+                  strokeDasharray={`${dash} ${circumference}`}
+                  transform={`rotate(-90 ${center} ${center})`}
+                />
+              ) : null}
+            </g>
+          );
+        })}
+      </svg>
+      <ul className="legend">
+        {rows.map((row, i) => (
+          <li key={`${row.name}-${i}`}>
+            <span className="swatch" style={{ background: row.color }} />
+            {row.name} — {label(row)}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
+}
+
+/** Dark text on light fills, white text on dark ones. */
+function treemapLabelColor(fill: string) {
+  const match = /^#([0-9a-f]{6})$/i.exec(fill.trim());
+  if (!match) return "#fff";
+  const n = parseInt(match[1], 16);
+  const luminance = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return luminance > 0.62 ? "#14181d" : "#fff";
+}
+
+function truncateLabel(text: string, width: number, charWidth: number) {
+  const maxChars = Math.floor((width - 12) / charWidth);
+  if (text.length <= maxChars) return text;
+  return maxChars > 2 ? `${text.slice(0, maxChars - 1)}…` : "";
 }
 
 function TreemapNode(props: {
@@ -508,50 +566,79 @@ function TreemapNode(props: {
   y?: number;
   width?: number;
   height?: number;
+  depth?: number;
   name?: string;
+  value?: number;
   color?: string;
-  fill?: string;
+  currency_code?: string;
+  locale?: string;
 }) {
-  const { x = 0, y = 0, width = 0, height = 0, name, color, fill } = props;
-  if (width < 4 || height < 4) return null;
+  const { x = 0, y = 0, width = 0, height = 0, depth = 0, name = "", color } = props;
+  // Recharts also renders the root node (depth 0), which would paint the gaps between tiles.
+  if (depth < 1 || width < 4 || height < 4) return null;
+  const fill = color ?? "var(--accent)";
+  const textColor = treemapLabelColor(fill);
+  const title = truncateLabel(name, width, 7);
+  const amount =
+    typeof props.value === "number" && props.currency_code
+      ? formatMoney(props.value, props.currency_code, props.locale)
+      : "";
+  const showAmount = Boolean(amount) && height > 44 && truncateLabel(amount, width, 6.5) === amount;
+  const cx = x + width / 2;
+  const cy = y + height / 2;
+  const textStyle = { fill: textColor, fontFamily: "var(--font-ui)", pointerEvents: "none" as const };
+
   return (
     <g>
-      <rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        fill={color ?? fill ?? "var(--accent)"}
-        stroke="var(--bg-elevated)"
-        strokeWidth={2}
-        rx={4}
-      />
-      {width > 48 && height > 24 ? (
+      <title>{amount ? `${name}: ${amount}` : name}</title>
+      <rect x={x} y={y} width={width} height={height} rx={6} fill={fill} stroke="none" />
+      {title && height > 22 ? (
         <text
-          x={x + width / 2}
-          y={y + height / 2}
+          x={cx}
+          y={showAmount ? cy - 8 : cy}
           textAnchor="middle"
           dominantBaseline="middle"
-          fill="white"
-          fontSize={11}
+          fontSize={12}
+          fontWeight={600}
+          style={textStyle}
         >
-          {name}
+          {title}
+        </text>
+      ) : null}
+      {showAmount ? (
+        <text
+          x={cx}
+          y={cy + 9}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={11}
+          style={{ ...textStyle, opacity: 0.85 }}
+        >
+          {amount}
         </text>
       ) : null}
     </g>
   );
 }
 
-export function ColoredTreemap({ data, height = 260 }: { data: ChartRow[]; height?: number }) {
+export function ColoredTreemap({
+  data,
+  height = 260,
+  locale,
+}: {
+  data: ChartRow[];
+  height?: number;
+  locale?: string;
+}) {
   return (
     <ChartShell height={height}>
       <Treemap
         data={data}
         dataKey="value"
         aspectRatio={4 / 3}
-        nodeGap={3}
-        stroke="var(--bg-elevated)"
-        content={<TreemapNode />}
+        nodeGap={4}
+        isAnimationActive={false}
+        content={<TreemapNode locale={locale} />}
       />
     </ChartShell>
   );
